@@ -382,6 +382,11 @@
   let monthlyScrollIdx = 0;   // indice del mese attualmente "a fuoco" nella vista mensile
   let totalWorkers = 15;      // operai totali disponibili, usati per la formattazione condizionale
   let showActual = true;      // mostra/nasconde la barra e la riga del reale (solo preferenza di vista)
+  // Indirizzi di base: non sono un segreto (il file su GitHub è pubblico), quindi li scrivo
+  // qui direttamente invece di richiedere una configurazione su ogni dispositivo. Il pannello
+  // "⚙ GitHub" resta comunque disponibile per sovrascriverli, se un giorno servisse.
+  const DEFAULT_WORKER_URL = "https://bold-snow-b2d2.fabianocanclini.workers.dev";
+  const DEFAULT_READ_URL = "https://raw.githubusercontent.com/tecnociful/GAL-programma-lavori/main/programma-lavori.json";
   let publishConfig = { workerUrl: "", readUrl: "" }; // pubblicazione su GitHub (vedi openPublishSettings)
   const DAY_ROW_MIN_WIDTH = 16; // sotto questa larghezza i numeri dei giorni spariscono (restano solo come "righello" invisibile)
   const BAR_MIN_HEIGHT = 14;    // spessore di una barra senza operai assegnati
@@ -1980,9 +1985,10 @@
   // lo tiene solo il Worker. Se fallisce (Worker non raggiungibile, non configurato...) la
   // pianificazione resta comunque salvata in locale, si riprova al salvataggio successivo.
   async function publishToGithub(payloadJson) {
-    if (!publishConfig.workerUrl) return;
+    const url = publishConfig.workerUrl || DEFAULT_WORKER_URL;
+    if (!url) return;
     try {
-      await fetch(publishConfig.workerUrl, {
+      await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: payloadJson
@@ -1999,8 +2005,8 @@
     menu.className = "date-menu";
     menu.innerHTML = `
       <div class="date-menu-title">Pubblicazione su GitHub</div>
-      <label class="date-menu-field">Indirizzo del Worker (per salvare)<input type="text" id="publishWorkerUrl" value="${publishConfig.workerUrl}" placeholder="https://tuo-worker.tuo-account.workers.dev"></label>
-      <label class="date-menu-field">Indirizzo raw del file (per leggere, versione sola lettura)<input type="text" id="publishReadUrl" value="${publishConfig.readUrl}" placeholder="https://raw.githubusercontent.com/utente/repo/main/file.json"></label>
+      <label class="date-menu-field">Indirizzo del Worker (per salvare)<input type="text" id="publishWorkerUrl" value="${publishConfig.workerUrl || DEFAULT_WORKER_URL}" placeholder="https://tuo-worker.tuo-account.workers.dev"></label>
+      <label class="date-menu-field">Indirizzo raw del file (per leggere, versione sola lettura)<input type="text" id="publishReadUrl" value="${publishConfig.readUrl || DEFAULT_READ_URL}" placeholder="https://raw.githubusercontent.com/utente/repo/main/file.json"></label>
       <div class="date-menu-actions">
         <button type="button" class="date-menu-cancel" onclick="closeDateMenu()">Annulla</button>
         <button type="button" class="date-menu-apply" onclick="applyPublishSettings()">Salva</button>
@@ -2133,9 +2139,10 @@
   }
 
   async function loadSharedIntoView() {
-    if (publishConfig.readUrl) {
+    const readUrl = publishConfig.readUrl || DEFAULT_READ_URL;
+    if (readUrl) {
       try {
-        const resp = await fetch(publishConfig.readUrl, { cache: "no-store" });
+        const resp = await fetch(readUrl, { cache: "no-store" });
         if (resp.ok) {
           applyPayload(await resp.json());
           return;
