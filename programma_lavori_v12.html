@@ -2020,7 +2020,7 @@
     publishConfig = { workerUrl: w, readUrl: r };
     savePublishConfig();
     closeDateMenu();
-    flashSaveStatus(true, "Impostazioni salvate");
+    persistState(); // pubblica subito, senza aspettare una modifica successiva
   }
 
   // ---------- ESPORTAZIONE / IMPORTAZIONE (per confrontare alternative o fare backup) ----------
