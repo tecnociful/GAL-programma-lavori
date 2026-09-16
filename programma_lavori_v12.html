@@ -39,7 +39,15 @@
     padding-bottom: 12px; border-bottom: 2px solid var(--border);
   }
   .title h1 { font-size: 1.25rem; margin: 0; color: var(--primary); }
-  .title p { font-size: 0.85rem; margin: 4px 0 0; color: #64748B; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .last-update-text { font-size: 0.72rem; color: #94A3B8; white-space: nowrap; }
+  .settings-gear-btn {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    width: 28px; height: 28px; font-size: 0.9rem; color: #94A3B8; cursor: pointer;
+    flex-shrink: 0;
+  }
+  .settings-gear-btn:hover { background: #F1F5F9; color: #64748B; }
+  body.readonly .settings-gear-btn { display: none; }
   .readonly-badge {
     display: none; background: #F1F5F9; color: #64748B; font-size: 0.7rem; font-weight: 700;
     padding: 4px 10px; border-radius: 20px; white-space: nowrap;
@@ -66,10 +74,8 @@
     white-space: nowrap;
   }
   .btn-add:hover { background: #EFF6FF; }
-  .btn-reset { border-style: solid; color: #64748B; border-color: var(--border); }
   .btn-add:disabled { opacity: 0.4; cursor: default; background: #fff; }
   .btn-add:disabled:hover { background: #fff; }
-  .btn-reset.confirm-pending { background: #FEF2F2; border-color: #DC2626; color: #DC2626; }
   .save-status { font-size: 0.75rem; min-width: 100px; }
   .save-status.save-ok { color: #16A34A; }
   .save-status.save-err { color: #DC2626; }
@@ -301,10 +307,13 @@
 <div class="card">
   <div class="header-bar">
     <div class="title">
-      <h1>GESTIONE CONDIVISA &#9654; CANTIERI &amp; SQUADRE</h1>
-      <p id="subTitle">Allocazione risorse - vista mensile e dettaglio giornaliero</p>
+      <h1>Programma Lavori - G.A.L.</h1>
     </div>
-    <span class="readonly-badge">SOLA LETTURA &middot; si aggiorna da sola</span>
+    <div class="header-right">
+      <span class="readonly-badge">SOLA LETTURA &middot; si aggiorna da sola</span>
+      <span id="lastUpdateText" class="last-update-text"></span>
+      <button class="settings-gear-btn" onclick="openPublishSettings(event)" title="Configura la pubblicazione su GitHub (impostazione una tantum)">&#9881;</button>
+    </div>
   </div>
 
   <div class="tabs">
@@ -313,16 +322,13 @@
       <span class="controls-sep"></span>
       <button class="btn-add" onclick="addSite()">+ Nuovo cantiere</button>
       <span class="controls-sep"></span>
-      <button id="workforceBtn" class="btn-add" onclick="openWorkforceMenu(event)" title="Imposta il numero totale di operai disponibili">&#128119; Operai: 15</button>
+      <button id="workforceBtn" class="btn-add" onclick="openWorkforceMenu(event)" title="Imposta il numero totale di operai disponibili">&#128119; Disponibilità operai: 15</button>
       <button class="btn-add" onclick="sortSitesByTodayWorkers()" title="Ordina i cantieri per numero di operai assegnati oggi">&#8597; Ordina per operai oggi</button>
-      <button id="toggleActualBtn" class="btn-add" onclick="toggleActualView()" title="Mostra/nasconde la barra e la riga del reale">&#128065; Nascondi reale</button>
-      <button class="btn-add" onclick="openPublishSettings(event)" title="Configura la pubblicazione automatica su GitHub">&#9881; GitHub</button>
+      <button id="toggleActualBtn" class="btn-add" onclick="toggleActualView()" title="Mostra/nasconde la barra e la riga del reale">&#128065; Mostra reale</button>
       <span class="controls-sep"></span>
       <button class="btn-add" onclick="exportPlan()" title="Salva questa pianificazione come file, da aprire anche con Importa nella versione da cellulare">&#11015; Esporta</button>
       <button class="btn-add" onclick="document.getElementById('importFileInput').click()" title="Carica una pianificazione salvata in precedenza">&#11014; Importa</button>
       <input type="file" id="importFileInput" accept=".json" style="display:none;" onchange="importPlan(event)">
-      <span class="controls-sep"></span>
-      <button class="btn-add btn-reset" onclick="resetToDemo(this)">&#8634; Dati di esempio</button>
       <span id="saveStatus" class="save-status"></span>
     </div>
   </div>
@@ -381,7 +387,7 @@
   let dayWidth = 16;          // livello di zoom orizzontale della vista mensile
   let monthlyScrollIdx = 0;   // indice del mese attualmente "a fuoco" nella vista mensile
   let totalWorkers = 15;      // operai totali disponibili, usati per la formattazione condizionale
-  let showActual = true;      // mostra/nasconde la barra e la riga del reale (solo preferenza di vista)
+  let showActual = false;     // mostra/nasconde la barra e la riga del reale (solo preferenza di vista)
   // Indirizzi di base: non sono un segreto (il file su GitHub è pubblico), quindi li scrivo
   // qui direttamente invece di richiedere una configurazione su ogni dispositivo. Il pannello
   // "⚙ GitHub" resta comunque disponibile per sovrascriverli, se un giorno servisse.
@@ -549,7 +555,7 @@
   function renderApp() {
     renderMonthly();
     const wb = document.getElementById("workforceBtn");
-    if (wb) wb.innerHTML = "&#128119; Operai: " + totalWorkers;
+    if (wb) wb.innerHTML = "&#128119; Disponibilità operai: " + totalWorkers;
     const tab = document.getElementById("toggleActualBtn");
     if (tab) tab.innerHTML = showActual ? "&#128065; Nascondi reale" : "&#128065; Mostra reale";
   }
@@ -1957,11 +1963,25 @@
     updateMonthlyLabel();
   }
 
+  function formatUpdateTimestamp(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const pad = n => String(n).padStart(2, "0");
+    return `Aggiornato il ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} alle ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function setLastUpdateText(iso) {
+    const el = document.getElementById("lastUpdateText");
+    if (el) el.textContent = formatUpdateTimestamp(iso);
+  }
+
   async function persistState() {
-    const payload = JSON.stringify(planToPayload());
+    const payloadObj = planToPayload();
+    const payload = JSON.stringify(payloadObj);
     const ok = await storageAdapter.set(STORAGE_KEY, payload);
     storageAdapter.setShared(STORAGE_KEY, payload); // per chi apre il link con #vista
     publishToGithub(payload); // in background: non blocca il salvataggio locale se fallisce
+    setLastUpdateText(payloadObj.esportatoIl);
     flashSaveStatus(ok);
   }
 
@@ -2098,29 +2118,11 @@
     try {
       applyPayload(chosen);
       if (chosen === githubPayload) await storageAdapter.set(STORAGE_KEY, JSON.stringify(chosen)); // allinea anche la copia locale
+      setLastUpdateText(chosen.esportatoIl);
       return true;
     } catch (e) {
       return false;
     }
-  }
-
-  function resetToDemo(btn) {
-    if (btn.dataset.confirm !== "1") {
-      btn.dataset.confirm = "1";
-      btn.textContent = "Confermi?";
-      btn.classList.add("confirm-pending");
-      clearTimeout(btn._confirmTimeout);
-      btn._confirmTimeout = setTimeout(() => {
-        btn.dataset.confirm = "0";
-        btn.textContent = "\u21ba Dati di esempio";
-      }, 2500);
-      return;
-    }
-    pushUndo();
-    storageAdapter.remove(STORAGE_KEY);
-    loadDemo();
-    btn.dataset.confirm = "0";
-    btn.textContent = "\u21ba Dati di esempio";
   }
 
 
@@ -2170,7 +2172,9 @@
       try {
         const resp = await fetch(readUrl, { cache: "no-store" });
         if (resp.ok) {
-          applyPayload(await resp.json());
+          const data = await resp.json();
+          applyPayload(data);
+          setLastUpdateText(data.esportatoIl);
           return;
         }
       } catch (e) { /* GitHub non raggiungibile: si prova la via di riserva sotto */ }
@@ -2178,7 +2182,9 @@
     const raw = await storageAdapter.getShared(STORAGE_KEY);
     if (!raw) { renderReadonlyEmptyState(); return; }
     try {
-      applyPayload(JSON.parse(raw));
+      const data = JSON.parse(raw);
+      applyPayload(data);
+      setLastUpdateText(data.esportatoIl);
     } catch (e) { /* si riprova al prossimo aggiornamento automatico */ }
   }
 
