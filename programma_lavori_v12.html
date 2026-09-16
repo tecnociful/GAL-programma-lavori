@@ -2068,10 +2068,36 @@
 
 
   async function loadSavedState() {
-    const raw = await storageAdapter.get(STORAGE_KEY);
-    if (!raw) return false;
+    const localRaw = await storageAdapter.get(STORAGE_KEY);
+    let localPayload = null;
+    if (localRaw) {
+      try { localPayload = JSON.parse(localRaw); } catch (e) { /* copia locale corrotta, si ignora */ }
+    }
+
+    // Confronta con l'ultima pubblicazione su GitHub: se è più recente della copia locale di
+    // questo dispositivo (es. una modifica fatta da un altro dispositivo), usa quella. Così
+    // un solo salvataggio (automatico a ogni modifica) resta sincronizzato ovunque, senza
+    // bisogno di esportare/importare per il lavoro di tutti i giorni.
+    let githubPayload = null;
+    const readUrl = publishConfig.readUrl || DEFAULT_READ_URL;
+    if (readUrl) {
+      try {
+        const resp = await fetch(readUrl, { cache: "no-store" });
+        if (resp.ok) githubPayload = await resp.json();
+      } catch (e) { /* GitHub non raggiungibile: si usa solo la copia locale, se c'è */ }
+    }
+
+    let chosen = localPayload;
+    if (githubPayload) {
+      const localTime = localPayload && localPayload.esportatoIl ? Date.parse(localPayload.esportatoIl) : 0;
+      const githubTime = githubPayload.esportatoIl ? Date.parse(githubPayload.esportatoIl) : 0;
+      if (githubTime > localTime) chosen = githubPayload;
+    }
+
+    if (!chosen) return false;
     try {
-      applyPayload(JSON.parse(raw));
+      applyPayload(chosen);
+      if (chosen === githubPayload) await storageAdapter.set(STORAGE_KEY, JSON.stringify(chosen)); // allinea anche la copia locale
       return true;
     } catch (e) {
       return false;
