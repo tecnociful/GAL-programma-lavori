@@ -1807,12 +1807,12 @@
   // Ridefinisce la larghezza del calendario sulla durata reale dei cantieri (+1 mese per
   // lato). Va richiamata dopo ogni modifica che può cambiare quanto calendario serve
   // davvero: fine di un trascinamento, nuova durata piazzata, cantiere rimosso, importazione.
-  function fitCalendarToSites() {
+  function fitCalendarToSites(persist = true) {
     const r = computeFitRange();
     rebuildCalendar(buildDatesForRange(r.startY, r.startM, r.endY, r.endM));
     renderApp();
     updateMonthlyLabel();
-    persistState();
+    if (persist) persistState();
   }
 
   // ---------- RIDIMENSIONAMENTO COLONNA CANTIERE ----------
@@ -2212,7 +2212,9 @@
 
     // Ridefinisce sempre la larghezza del calendario sulla durata reale dei cantieri
     // (+1 mese per lato), sia per i dati demo sia per una pianificazione già salvata.
-    fitCalendarToSites();
+    // "false": è solo una sistemazione della vista al caricamento, non una modifica vera —
+    // non deve pubblicare nulla da sola.
+    fitCalendarToSites(false);
 
     document.getElementById("ganttScrollWrap").addEventListener("scroll", () => {
       updateMonthlyLabel(); scheduleBarLabelUpdate();
