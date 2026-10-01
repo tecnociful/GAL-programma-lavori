@@ -52,13 +52,6 @@
   }
   .stale-banner button:hover { background: #D97706; }
   body.readonly .stale-banner { display: none !important; }
-  .settings-gear-btn {
-    background: none; border: 1px solid var(--border); border-radius: 6px;
-    width: 28px; height: 28px; font-size: 0.9rem; color: #94A3B8; cursor: pointer;
-    flex-shrink: 0;
-  }
-  .settings-gear-btn:hover { background: #F1F5F9; color: #64748B; }
-  body.readonly .settings-gear-btn { display: none; }
   .readonly-badge {
     display: none; background: #F1F5F9; color: #64748B; font-size: 0.7rem; font-weight: 700;
     padding: 4px 10px; border-radius: 20px; white-space: nowrap;
@@ -323,7 +316,6 @@
     <div class="header-right">
       <span class="readonly-badge">SOLA LETTURA &middot; si aggiorna da sola</span>
       <span id="lastUpdateText" class="last-update-text"></span>
-      <button class="settings-gear-btn" onclick="openPublishSettings(event)" title="Configura la pubblicazione su GitHub (impostazione una tantum)">&#9881;</button>
     </div>
   </div>
 
@@ -414,7 +406,6 @@
   function bustCache(url) {
     return url + (url.includes("?") ? "&" : "?") + "_=" + Date.now();
   }
-  let publishConfig = { workerUrl: "", readUrl: "" }; // pubblicazione su GitHub (vedi openPublishSettings)
   let lastKnownTimestamp = null; // orario della versione attualmente caricata, per il controllo periodico
   const DAY_ROW_MIN_WIDTH = 16; // sotto questa larghezza i numeri dei giorni spariscono (restano solo come "righello" invisibile)
   const BAR_MIN_HEIGHT = 14;    // spessore di una barra senza operai assegnati
@@ -1996,7 +1987,7 @@
   }
 
   async function checkForNewerRemoteVersion() {
-    const readUrl = publishConfig.readUrl || DEFAULT_READ_URL;
+    const readUrl = DEFAULT_READ_URL;
     if (!readUrl || !lastKnownTimestamp) return;
     try {
       const resp = await fetch(bustCache(readUrl), { cache: "no-store" });
@@ -2033,67 +2024,17 @@
   }
 
   // ---------- PUBBLICAZIONE SU GITHUB (tramite un piccolo "postino" esterno, il Worker) ----------
-  const PUBLISH_CONFIG_KEY = "programma-lavori-v5-publish-config";
-
-  async function loadPublishConfig() {
-    const raw = await storageAdapter.get(PUBLISH_CONFIG_KEY);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw);
-      publishConfig = { workerUrl: parsed.workerUrl || "", readUrl: parsed.readUrl || "" };
-    } catch (e) { /* config non valida, restano i valori vuoti di default */ }
-  }
-
-  async function savePublishConfig() {
-    await storageAdapter.set(PUBLISH_CONFIG_KEY, JSON.stringify(publishConfig));
-  }
-
   // Manda i dati al Worker, che li scrive su GitHub. Il token vero non passa mai da qui:
-  // lo tiene solo il Worker. Se fallisce (Worker non raggiungibile, non configurato...) la
-  // pianificazione resta comunque salvata in locale, si riprova al salvataggio successivo.
+  // lo tiene solo il Worker. Se fallisce (Worker non raggiungibile...) la pianificazione
+  // resta comunque salvata in locale, si riprova al salvataggio successivo.
   async function publishToGithub(payloadJson) {
-    const url = publishConfig.workerUrl || DEFAULT_WORKER_URL;
-    if (!url) return;
     try {
-      await fetch(url, {
+      await fetch(DEFAULT_WORKER_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: payloadJson
       });
     } catch (e) { /* nessun avviso: non deve interrompere il salvataggio locale */ }
-  }
-
-  function openPublishSettings(evt) {
-    evt.stopPropagation();
-    closeDateMenu();
-    closeWorkforceMenu();
-    const menu = document.createElement("div");
-    menu.id = "dateMenu";
-    menu.className = "date-menu";
-    menu.innerHTML = `
-      <div class="date-menu-title">Pubblicazione su GitHub</div>
-      <label class="date-menu-field">Indirizzo del Worker (per salvare)<input type="text" id="publishWorkerUrl" value="${publishConfig.workerUrl || DEFAULT_WORKER_URL}" placeholder="https://tuo-worker.tuo-account.workers.dev"></label>
-      <label class="date-menu-field">Indirizzo per leggere (di solito uguale a quello del Worker)<input type="text" id="publishReadUrl" value="${publishConfig.readUrl || DEFAULT_READ_URL}" placeholder="https://tuo-worker.tuo-account.workers.dev"></label>
-      <div class="date-menu-actions">
-        <button type="button" class="date-menu-cancel" onclick="closeDateMenu()">Annulla</button>
-        <button type="button" class="date-menu-apply" onclick="applyPublishSettings()">Salva</button>
-      </div>`;
-    document.body.appendChild(menu);
-    const rect = evt.currentTarget.getBoundingClientRect();
-    const x = Math.min(rect.left, window.innerWidth - menu.offsetWidth - 12);
-    const y = Math.min(rect.bottom + 6, window.innerHeight - menu.offsetHeight - 12);
-    menu.style.left = Math.max(8, x) + "px";
-    menu.style.top = Math.max(8, y) + "px";
-    setTimeout(() => document.addEventListener("mousedown", onDateMenuOutsideClick), 0);
-  }
-
-  function applyPublishSettings() {
-    const w = document.getElementById("publishWorkerUrl").value.trim();
-    const r = document.getElementById("publishReadUrl").value.trim();
-    publishConfig = { workerUrl: w, readUrl: r };
-    savePublishConfig();
-    closeDateMenu();
-    persistState(); // pubblica subito, senza aspettare una modifica successiva
   }
 
   // ---------- ESPORTAZIONE / IMPORTAZIONE (per confrontare alternative o fare backup) ----------
@@ -2146,7 +2087,7 @@
     // un solo salvataggio (automatico a ogni modifica) resta sincronizzato ovunque, senza
     // bisogno di esportare/importare per il lavoro di tutti i giorni.
     let githubPayload = null;
-    const readUrl = publishConfig.readUrl || DEFAULT_READ_URL;
+    const readUrl = DEFAULT_READ_URL;
     if (readUrl) {
       try {
         const resp = await fetch(bustCache(readUrl), { cache: "no-store" });
@@ -2224,7 +2165,7 @@
   }
 
   async function loadSharedIntoView() {
-    const readUrl = publishConfig.readUrl || DEFAULT_READ_URL;
+    const readUrl = DEFAULT_READ_URL;
     if (readUrl) {
       try {
         const resp = await fetch(bustCache(readUrl), { cache: "no-store" });
@@ -2248,7 +2189,6 @@
   async function bootReadonly() {
     document.body.classList.add("readonly");
     applyStickyWidth();
-    await loadPublishConfig();
     await loadSharedIntoView();
     setInterval(loadSharedIntoView, 20000); // si aggiorna da sola, niente da premere
     document.getElementById("ganttScrollWrap").addEventListener("scroll", () => {
@@ -2261,7 +2201,6 @@
     if (READONLY) { await bootReadonly(); return; }
 
     applyStickyWidth();
-    await loadPublishConfig();
     const restored = await loadSavedState();
     if (!restored) loadDemo();
 
