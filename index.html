@@ -331,7 +331,7 @@
       <button class="btn-add" onclick="addSite()">+ Nuovo cantiere</button>
       <span class="controls-sep"></span>
       <button id="workforceBtn" class="btn-add" onclick="openWorkforceMenu(event)" title="Imposta il numero totale di operai disponibili">&#128119; Disponibilità operai: 15</button>
-      <button class="btn-add" onclick="sortSitesByTodayWorkers()" title="Ordina i cantieri per numero di operai assegnati oggi">&#8597; Ordina per operai oggi</button>
+      <button class="btn-add" onclick="sortSitesByRelevance()" title="Attivi (per operai oggi), poi futuri (per data di inizio), poi terminati">&#8597; Ordina per rilevanza</button>
       <button id="toggleActualBtn" class="btn-add" onclick="toggleActualView()" title="Mostra/nasconde la barra e la riga del reale">&#128065; Mostra reale</button>
       <span class="controls-sep"></span>
       <button class="btn-add" onclick="exportPlan()" title="Salva questa pianificazione come file, da aprire anche con Importa nella versione da cellulare">&#11015; Esporta</button>
@@ -751,7 +751,14 @@
       html += `</div></td></tr>`;
     });
     html += "</tbody>";
+    // Sostituire tutto il contenuto della tabella fa "dimenticare" al browser dove si era
+    // scorso: si memorizza la posizione prima e la si ripristina subito dopo. Chi chiama
+    // questa funzione per spostarsi altrove (zoom, "Oggi", centra cantiere...) lo fa comunque
+    // DOPO, quindi la sua destinazione resta quella giusta.
+    const scrollWrap = document.getElementById("ganttScrollWrap");
+    const prevScrollLeft = scrollWrap ? scrollWrap.scrollLeft : 0;
     table.innerHTML = html;
+    if (scrollWrap) scrollWrap.scrollLeft = prevScrollLeft;
     alignTodayStripe();
     updateBarLabelPositions();
   }
@@ -1326,11 +1333,45 @@
     return sum;
   }
 
-  function sortSitesByTodayWorkers() {
-    pushUndo();
-    const decorated = state.sites.map((s, i) => ({ s, i, w: siteWorkersToday(s) }));
-    decorated.sort((a, b) => b.w - a.w || a.i - b.i); // stabile: a parità mantiene l'ordine attuale
+  // Categoria di un cantiere rispetto a oggi: 0 = attivo oggi, 1 = futuro (ha almeno una
+  // fase che deve ancora iniziare), 2 = terminato (tutte le fasi sono nel passato),
+  // 3 = nessuna fase pianificata.
+  function siteStatusCategory(site, todayIdx) {
+    const segs = site.segments || [];
+    if (!segs.length) return 3;
+    if (segs.some(s => todayIdx >= s.start && todayIdx <= s.end)) return 0;
+    if (segs.some(s => s.start > todayIdx)) return 1;
+    return 2;
+  }
+
+  // Ordina per rilevanza rispetto a oggi: prima i cantieri attivi (dal più al meno
+  // impegnato), poi quelli futuri (dal più vicino), infine quelli terminati (dal più
+  // recente); i cantieri senza nessuna fase restano in fondo.
+  // Calcola e applica l'ordine di rilevanza, senza effetti collaterali (nessun annulla,
+  // nessuna pubblicazione): usata sia dal pulsante sia automaticamente all'apertura.
+  function applyRelevanceOrder() {
+    const todayIdx = todayIndex(state.dates);
+    const decorated = state.sites.map((s, i) => {
+      const cat = siteStatusCategory(s, todayIdx);
+      let key = 0;
+      if (cat === 0) {
+        key = -siteWorkersToday(s);
+      } else if (cat === 1) {
+        const starts = (s.segments || []).filter(seg => seg.start > todayIdx).map(seg => seg.start);
+        key = Math.min(...starts);
+      } else if (cat === 2) {
+        const ends = (s.segments || []).map(seg => seg.end);
+        key = -Math.max(...ends);
+      }
+      return { s, i, cat, key };
+    });
+    decorated.sort((a, b) => a.cat - b.cat || a.key - b.key || a.i - b.i); // stabile a parità
     state.sites = decorated.map(d => d.s);
+  }
+
+  function sortSitesByRelevance() {
+    pushUndo();
+    applyRelevanceOrder();
     renderApp();
     persistState();
   }
@@ -1968,6 +2009,7 @@
       };
     });
     state = { dates, sites };
+    applyRelevanceOrder();
     if (typeof payload.totalWorkers === "number") totalWorkers = payload.totalWorkers;
     if (payload.dayWidth) dayWidth = payload.dayWidth;
     if (payload.stickyWidth) { stickyWidth = payload.stickyWidth; applyStickyWidth(); }
@@ -2205,6 +2247,7 @@
     if (!restored) loadDemo();
 
     state.sites.forEach(mergeAdjacentSegments);
+    applyRelevanceOrder();
 
     // Ridefinisce sempre la larghezza del calendario sulla durata reale dei cantieri
     // (+1 mese per lato), sia per i dati demo sia per una pianificazione già salvata.
