@@ -94,6 +94,11 @@
     display: flex; align-items: center; justify-content: space-between;
     gap: 16px; margin: 4px 0 10px; flex-wrap: wrap;
   }
+  /* Schermo intero (anche simulato, per i dispositivi che non supportano l'API nativa) */
+  body.fs { padding: 0; }
+  body.fs .header-bar, body.fs .tabs, body.fs #staleBanner { display: none; }
+  body.fs .card { border-radius: 0; box-shadow: none; padding: 6px; }
+  body.fs .view-toolbar { margin: 0 0 6px; }
   .month-nav { display: flex; align-items: center; gap: 10px; }
   .monthly-label { font-weight: 700; color: var(--primary); font-size: 0.9rem; min-width: 140px; text-align: center; }
   .nav-btn {
@@ -383,6 +388,7 @@
       <button class="nav-btn" onclick="monthlyNext()" title="Mese successivo">&#9654;</button>
       <button class="nav-btn nav-btn-text" onclick="scrollToToday()" title="Vai alla data odierna">Oggi</button>
     </div>
+    <button id="fsBtn" class="nav-btn" onclick="toggleFullscreen()" title="Schermo intero">&#9974;</button>
   </div>
 
   <div class="gantt-container" id="ganttScrollWrap">
@@ -1156,7 +1162,8 @@
   // anchorX = coordinata X in pixel dentro l'area visibile del calendario.
   function setZoomAnchored(newWidth, anchorX) {
     const container = document.getElementById("ganttScrollWrap");
-    newWidth = clamp(newWidth, MIN_DAY_WIDTH, 40);
+    // larghezze frazionarie (a passi di 1/16 px): lo zoom risulta continuo, non a scatti
+    newWidth = Math.round(clamp(newWidth, MIN_DAY_WIDTH, 40) * 16) / 16;
     if (!container || newWidth === dayWidth) return;
     if (anchorX == null) anchorX = container.clientWidth / 2;
     const anchorDay = (container.scrollLeft + anchorX) / dayWidth;
@@ -1174,7 +1181,6 @@
   // Maiusc = scorrimento laterale.
   function setupWheelAndPinch() {
     const container = document.getElementById("ganttScrollWrap");
-    let wheelAcc = 0;
     container.addEventListener("wheel", (e) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
@@ -1182,13 +1188,7 @@
         const x = e.clientX - rect.left;
         // proporzionale: una tacca di rotellina ~ +/-15%, il pizzico del touchpad (delta piccoli) è più fine
         const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
-        let target = dayWidth * Math.exp(-dy * 0.0016);
-        let nw = Math.round(target);
-        if (nw === dayWidth && Math.abs(dy) > 0) {
-          wheelAcc += dy;
-          if (Math.abs(wheelAcc) >= 20) { nw = dayWidth + (wheelAcc < 0 ? 1 : -1); wheelAcc = 0; }
-        }
-        setZoomAnchored(nw, x);
+        setZoomAnchored(dayWidth * Math.exp(-dy * 0.0016), x);
       } else if (e.shiftKey) {
         e.preventDefault();
         const d = e.deltaX || e.deltaY;
@@ -1206,18 +1206,60 @@
                   x: (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left };
       }
     }, { passive: true });
+    // Le misure del dito arrivano a raffica: si tiene l'ultima e si ridisegna al massimo una volta
+    // per fotogramma, con larghezza frazionaria, così lo zoom segue il gesto in modo fluido.
+    let pinchFrame = 0, pinchTarget = null;
     container.addEventListener("touchmove", (e) => {
       if (pinch && e.touches.length === 2) {
         e.preventDefault();
         const rect = container.getBoundingClientRect();
-        pinch.x = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
-        setZoomAnchored(Math.round(pinch.w0 * dist(e.touches) / pinch.d0), pinch.x);
+        pinchTarget = {
+          w: pinch.w0 * dist(e.touches) / pinch.d0,
+          x: (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left
+        };
+        if (!pinchFrame) {
+          pinchFrame = requestAnimationFrame(() => {
+            pinchFrame = 0;
+            if (pinchTarget) setZoomAnchored(pinchTarget.w, pinchTarget.x);
+          });
+        }
       }
     }, { passive: false });
     const end = (e) => { if (e.touches.length < 2) pinch = null; };
     container.addEventListener("touchend", end, { passive: true });
     container.addEventListener("touchcancel", end, { passive: true });
   }
+
+  // ---------- SCHERMO INTERO ----------
+  // Prova prima l'API nativa (Android/desktop); su iPhone non esiste per le pagine, quindi la
+  // classe "fs" nasconde comunque intestazione e comandi e lascia tutto lo spazio al Gantt.
+  function isFullscreenOn() { return document.body.classList.contains("fs"); }
+  function setFullscreen(on) {
+    document.body.classList.toggle("fs", on);
+    const btn = document.getElementById("fsBtn");
+    if (btn) { btn.innerHTML = on ? "&#10005;" : "&#9974;"; btn.title = on ? "Esci da schermo intero" : "Schermo intero"; }
+    try {
+      if (on) {
+        const el = document.documentElement;
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (req && !document.fullscreenElement) {
+          Promise.resolve(req.call(el)).then(() => {
+            if (screen.orientation && screen.orientation.lock) screen.orientation.lock("landscape").catch(() => {});
+          }).catch(() => {});
+        }
+      } else {
+        if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+      }
+    } catch (e) { /* resta la modalità simulata */ }
+    // lo spazio disponibile cambia: si ridisegna per riallineare etichette e intestazioni
+    setTimeout(() => { positionStickyHeaders(); updateBarLabelPositions(); }, 60);
+  }
+  function toggleFullscreen() { setFullscreen(!isFullscreenOn()); }
+  // Se l'utente esce dallo schermo intero nativo (gesto di sistema), si esce anche dalla modalità
+  document.addEventListener("fullscreenchange", () => {
+    if (!document.fullscreenElement && isFullscreenOn()) setFullscreen(false);
+  });
 
   // Navigazione rapida da un mese al successivo/precedente
   function scrollMonthlyTo(idx) {
@@ -1622,7 +1664,8 @@
     scheduleBarLabelUpdate();
   }
   document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape" || !focusedSite) return;
+    if (e.key !== "Escape") return;
+    if (!focusedSite) { if (isFullscreenOn() && !document.getElementById("dateMenu")) setFullscreen(false); return; }
     // Esc non deve interrompere chi sta scrivendo in un campo di testo/data/numero
     const t = e.target;
     const typing = t && (t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && !["color", "checkbox", "button", "file"].includes(t.type)));
