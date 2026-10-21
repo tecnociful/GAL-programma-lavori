@@ -23,14 +23,18 @@
   * { box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    margin: 0; padding: 16px;
+    margin: 0; padding: 12px;
     background-color: #F8FAFC; color: #0F172A;
+    /* La pagina occupa esattamente la finestra: a scorrere è solo il calendario */
+    height: 100vh; height: 100dvh; overflow: hidden;
+    display: flex; flex-direction: column;
   }
 
   .card {
     background: #FFFFFF; border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 16px;
-    max-width: 1200px; margin: 0 auto;
+    flex: 1; min-height: 0; width: 100%;
+    display: flex; flex-direction: column;
   }
 
   .header-bar {
@@ -92,8 +96,6 @@
   }
   .month-nav { display: flex; align-items: center; gap: 10px; }
   .monthly-label { font-weight: 700; color: var(--primary); font-size: 0.9rem; min-width: 140px; text-align: center; }
-  .zoom-controls { display: flex; align-items: center; gap: 8px; }
-  .zoom-controls span { font-size: 0.75rem; color: #64748B; }
   .nav-btn {
     background: #F1F5F9; border: 1px solid var(--border); border-radius: 6px;
     width: 30px; height: 30px; cursor: pointer; font-size: 0.85rem;
@@ -103,17 +105,23 @@
   .nav-btn-text { width: auto; padding: 0 12px; }
 
   .gantt-container {
-    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    flex: 1; min-height: 0;
+    overflow: scroll; -webkit-overflow-scrolling: touch; /* barre sempre visibili */
     border: 1px solid var(--border); border-radius: 8px;
     position: relative;
+    touch-action: pan-x pan-y; /* il pizzico con due dita lo gestisce la pagina */
+    overscroll-behavior: contain;
   }
+  /* Intestazioni fisse in alto durante lo scorrimento verticale */
+  table.gantt-table thead th { position: sticky; z-index: 30; }
+  table.gantt-table thead th.sticky-col { z-index: 40; }
   .site-row-dragging { opacity: 0.35; }
   tr.drop-target-top > td { box-shadow: inset 0 3px 0 0 #2563EB; }
   tr.drop-target-bottom > td { box-shadow: inset 0 -3px 0 0 #2563EB; }
 
   table.gantt-table {
     border-collapse: separate; border-spacing: 0;
-    width: 100%; background: white;
+    table-layout: fixed; background: white;
   }
 
   th, td {
@@ -197,12 +205,14 @@
 
   .day-tick {
     background: #F1F5F9; font-weight: 400; color: #94A3B8;
-    padding: 3px 0; font-size: 0.62rem;
+    padding: 2px 0; font-size: 0.62rem;
     overflow: hidden; white-space: nowrap;
   }
   .day-tick-weekend { background: #E2E8F0; color: #64748B; font-weight: 600; }
   .day-tick-collapsed { height: 4px; padding: 0; font-size: 1px; line-height: 1px; color: transparent; }
-  .day-tick-today { background: #DC2626; color: #fff; font-weight: 700; }
+  .day-tick-today { font-weight: 800; box-shadow: inset 0 -3px 0 #1F4E78; }
+  .day-tick .day-initial { display: block; font-size: 0.5rem; line-height: 1; opacity: 0.8; text-transform: uppercase; }
+  .day-tick .day-num { display: block; line-height: 1.2; }
   .load-row-label {
     background: #fff; color: #64748B; font-style: italic; font-weight: 600;
     font-size: 0.66rem; white-space: nowrap;
@@ -238,6 +248,29 @@
 
   .gantt-track-cell { padding: 0; }
   .gantt-track { position: relative; height: 46px; }
+  tr.site-dimmed .gantt-track, tr.site-dimmed .site-label-col { opacity: 0.25; }
+  .gantt-track, .site-label-col { transition: opacity 0.2s; }
+  .tip {
+    position: fixed; z-index: 200; pointer-events: none; display: none;
+    background: #fff; color: #0F172A; border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(15,23,42,0.20); padding: 10px 12px 10px;
+    min-width: 190px; max-width: 280px; font-size: 0.78rem; line-height: 1.35;
+  }
+  .tip-head { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.84rem; margin-bottom: 7px; }
+  .tip-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; border: 1px solid rgba(0,0,0,0.15); }
+  .tip-sub { font-weight: 500; color: #64748B; font-size: 0.74rem; margin: -4px 0 7px 18px; }
+  .tip-grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; }
+  .tip-grid dt { color: #64748B; margin: 0; }
+  .tip-grid dd { margin: 0; font-weight: 600; text-align: right; }
+  .tip-over { color: #B91C1C; }
+  .tip-phases { margin-top: 8px; padding-top: 7px; border-top: 1px solid #E2E8F0; display: grid; gap: 3px; font-size: 0.72rem; color: #475569; }
+  .tip-phases div { display: flex; justify-content: space-between; gap: 10px; }
+  .tip-phases span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tip-foot { margin-top: 8px; font-size: 0.68rem; color: #94A3B8; }
+  .over-stripe {
+    position: absolute; top: 0; bottom: 0; background: rgba(220, 38, 38, 0.13);
+    pointer-events: none; z-index: 0;
+  }
   .weekend-stripe {
     position: absolute; top: 0; bottom: 0; background: rgba(100, 116, 139, 0.14);
     pointer-events: none; z-index: 0;
@@ -262,10 +295,12 @@
   }
   .gantt-bar:active { cursor: grabbing; }
   .bar-label {
-    display: block; padding: 0 14px; overflow: hidden;
-    text-overflow: ellipsis; white-space: nowrap; pointer-events: none;
+    display: flex; justify-content: center; align-items: baseline; padding: 0 14px; overflow: hidden;
+    white-space: nowrap; pointer-events: none; width: max-content;
     color: #64748B;
   }
+  .bar-desc { font-weight: 600; margin-right: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .bar-ops { font-weight: 700; font-size: 0.85em; opacity: 0.85; white-space: nowrap; flex: none; }
   .handle {
     position: absolute; top: 0; bottom: 0; width: 14px; cursor: ew-resize;
     z-index: 5;
@@ -348,11 +383,6 @@
       <button class="nav-btn" onclick="monthlyNext()" title="Mese successivo">&#9654;</button>
       <button class="nav-btn nav-btn-text" onclick="scrollToToday()" title="Vai alla data odierna">Oggi</button>
     </div>
-    <div class="zoom-controls">
-      <span>Zoom</span>
-      <button class="nav-btn" onclick="zoomMonthly(-4)" title="Riduci">&minus;</button>
-      <button class="nav-btn" onclick="zoomMonthly(4)" title="Ingrandisci">+</button>
-    </div>
   </div>
 
   <div class="gantt-container" id="ganttScrollWrap">
@@ -407,6 +437,7 @@
     return url + (url.includes("?") ? "&" : "?") + "_=" + Date.now();
   }
   let lastKnownTimestamp = null; // orario della versione attualmente caricata, per il controllo periodico
+  const MIN_DAY_WIDTH = 1; // zoom minimo: 1 pixel per giorno (utile per cantieri molto lunghi)
   const DAY_ROW_MIN_WIDTH = 16; // sotto questa larghezza i numeri dei giorni spariscono (restano solo come "righello" invisibile)
   const BAR_MIN_HEIGHT = 14;    // spessore di una barra senza operai assegnati
   const BAR_MAX_HEIGHT = 56;    // spessore di una barra con tutti gli operai disponibili (o più)
@@ -445,7 +476,7 @@
     const merged = [];
     site.segments.forEach(seg => {
       const last = merged[merged.length - 1];
-      if (last && last.end + 1 === seg.start && (last.workers || 0) === (seg.workers || 0)) {
+      if (last && last.end + 1 === seg.start && (last.workers || 0) === (seg.workers || 0) && (last.desc || "") === (seg.desc || "")) {
         last.end = seg.end;
         if (seg.actual) last.actual = Object.assign(last.actual || {}, seg.actual);
       } else {
@@ -588,7 +619,7 @@
     }
     return `<div class="site-label-col">
               <div class="site-label-row">
-                <span class="color-swatch-wrap" title="Cambia colore">
+                <span class="color-swatch-wrap" data-no-tip title="Cambia colore">
                   <span class="color-swatch-dot" style="background:${siteColorHex(site)};"></span>
                   <input type="color" class="color-swatch-input" value="${siteColorHex(site)}"
                     onclick="event.stopPropagation()" onmousedown="event.stopPropagation()"
@@ -597,7 +628,7 @@
                 <span class="site-name"
                   onmousedown="startNameInteraction(event, ${idx})" ontouchstart="startNameInteraction(event, ${idx})"
                   ondblclick="editSiteName(this, ${idx})"
-                  title="Clic: centra il calendario · doppio clic: rinomina · trascina: riordina">${site.name}</span>
+                 >${site.name}</span>
                 <button class="site-del" onclick="removeSite(${idx}, this)" title="Rimuovi cantiere">&times;</button>
               </div>
               ${dateTag}
@@ -631,10 +662,15 @@
     const dates = state.dates;
     if (!dates.length) { table.innerHTML = ""; return; }
 
+    if (focusedSite && !state.sites.includes(focusedSite)) { focusedSite = null; focusRestore = null; }
     const monthGroups = getMonthGroups();
     const tIdx = todayIndex(dates);
 
-    let html = `<thead><tr><th class="sticky-col">CANTIERE${colResizerHtml()}</th>`;
+    // Layout "fisso": ogni colonna ha esattamente la larghezza dichiarata (niente allargamenti
+    // dovuti a etichette dei mesi o bordi), cosi barre e calendario restano allineati anche a 1px/giorno.
+    table.style.width = `calc(var(--sticky-width) + ${dates.length * dayWidth}px)`;
+    let html = `<colgroup><col style="width:var(--sticky-width)">${`<col style="width:${dayWidth}px">`.repeat(dates.length)}</colgroup>`;
+    html += `<thead><tr><th class="sticky-col">CANTIERE${colResizerHtml()}</th>`;
     monthGroups.forEach(g => {
       const leftPx = g.startIndex * dayWidth;
       const widthPx = g.count * dayWidth;
@@ -650,13 +686,17 @@
     html += "<tr><th class='sticky-col'></th>";
     dates.forEach((d, i) => {
       let cls = "day-tick";
-      if (isWeekend(d)) cls += " day-tick-weekend";
+      if (d.dateObj.getDay() === 0) cls += " day-tick-weekend";
       if (i === tIdx) cls += " day-tick-today";
       if (!showDayNumbers) cls += " day-tick-collapsed";
-      html += `<th class="${cls}" style="min-width:${dayWidth}px;width:${dayWidth}px;">${showDayNumbers ? d.dayNum : ""}</th>`;
+      const li = dayLoadInfo(i);
+      if (li.over) cls += " load-cell-over";
+      let st = `min-width:${dayWidth}px;width:${dayWidth}px;`;
+      if (li.bg) st += `background-color:${li.bg};color:${li.color};`;
+      const inner = showDayNumbers ? `<span class="day-initial">${GIORNI[d.dateObj.getDay()].charAt(0)}</span><span class="day-num">${d.dayNum}</span>` : "";
+      html += `<th class="${cls}" style="${st}" data-tip-day="${i}">${inner}</th>`;
     });
     html += "</tr>";
-    html += loadRowHtml(dates);
     if (showActual) html += actualLoadRowHtml(dates);
     html += "</thead><tbody>";
 
@@ -680,7 +720,7 @@
       const trackHeight = allHeights.length
         ? Math.max(TRACK_DEFAULT_HEIGHT, Math.max(...allHeights) + TRACK_PADDING)
         : TRACK_DEFAULT_HEIGHT;
-      html += `<tr data-site-idx="${idx}"><td class="sticky-col" style="${siteCellStyle(site)}">${siteLabelInner(site, idx)}</td>`;
+      html += `<tr data-site-idx="${idx}"${focusedSite && site !== focusedSite ? ' class="site-dimmed"' : ""}><td class="sticky-col" data-tip-site="${idx}" style="${siteCellStyle(site)}">${siteLabelInner(site, idx)}</td>`;
       html += `<td class="gantt-track-cell" colspan="${dates.length}"><div class="gantt-track" style="width:${totalWidth}px;height:${trackHeight}px;">`;
       html += weekendStripes + todayStripe;
       // Sfondo sempre presente (sotto le barre): un clic in una zona libera crea una nuova
@@ -694,7 +734,10 @@
         const endLbl = dates[seg.end].label;
         const wd = workdaysCount(dates, seg.start, seg.end);
         const w = seg.workers || 0;
-        const wLabel = `${w}`;
+        // Sulla barra solo la descrizione del lavoro; il numero di operai è nel tooltip
+        // (e implicito nello spessore della barra).
+        const descTxt = (seg.desc || "").trim();
+        const wLabel = descTxt ? `<span class="bar-desc">${escAttr(descTxt)}</span>` : "";
         const hex = siteColorHex(site);
         const barH = barHeights[segIdx];
         const barTop = Math.round((trackHeight - barH) / 2);
@@ -738,12 +781,12 @@
         }
 
         html += `<div class="gantt-bar" style="left:${left}px;width:${width}px;top:${barTop}px;height:${barH}px;background-color:${tintColor(hex, 0.82)};border:1.5px solid ${hex};color:${hex};"
-                    title="${startLbl} \u2192 ${endLbl} (${wd} ${wd === 1 ? "giorno feriale" : "giorni feriali"})"
+                    data-tip-site="${idx}" data-tip-seg="${segIdx}"
                     onmousedown="startBarDrag(event, ${idx}, ${segIdx}, 'move')" ontouchstart="startBarDrag(event, ${idx}, ${segIdx}, 'move')"
                     oncontextmenu="openDateMenu(event, ${idx}, ${segIdx})">
                     <span class="handle handle-left" onmousedown="startBarDrag(event, ${idx}, ${segIdx}, 'left')" ontouchstart="startBarDrag(event, ${idx}, ${segIdx}, 'left')"></span>
                     ${overlayHtml}
-                    <span class="bar-label" title="Tasto destro sulla barra per modificare gli operai previsti; tasto destro sulla parte scura per il reale">${wLabel}</span>
+                    <span class="bar-label" style="max-width:${Math.max(10, width - 8)}px;">${wLabel}</span>
                     <button class="bar-del" onmousedown="event.stopPropagation()" onclick="removeSegment(event, ${idx}, ${segIdx})" title="Rimuovi questa fase">&times;</button>
                     <span class="handle handle-right" onmousedown="startBarDrag(event, ${idx}, ${segIdx}, 'right')" ontouchstart="startBarDrag(event, ${idx}, ${segIdx}, 'right')"></span>
                   </div>`;
@@ -757,8 +800,10 @@
     // DOPO, quindi la sua destinazione resta quella giusta.
     const scrollWrap = document.getElementById("ganttScrollWrap");
     const prevScrollLeft = scrollWrap ? scrollWrap.scrollLeft : 0;
+    const prevScrollTop = scrollWrap ? scrollWrap.scrollTop : 0;
     table.innerHTML = html;
-    if (scrollWrap) scrollWrap.scrollLeft = prevScrollLeft;
+    if (scrollWrap) { scrollWrap.scrollLeft = prevScrollLeft; scrollWrap.scrollTop = prevScrollTop; }
+    positionStickyHeaders();
     alignTodayStripe();
     updateBarLabelPositions();
   }
@@ -877,8 +922,13 @@
   function weekendStripesHtml(dates) {
     let html = "";
     dates.forEach((d, i) => {
-      if (isWeekend(d)) {
+      // Solo la domenica resta grigia; i giorni in cui si supera la disponibilità di operai
+      // si colorano di rosso tenue su tutta la colonna.
+      if (d.dateObj.getDay() === 0) {
         html += `<div class="weekend-stripe" style="left:${i * dayWidth}px;width:${dayWidth}px;"></div>`;
+      }
+      if (dayLoadInfo(i).over) {
+        html += `<div class="over-stripe" style="left:${i * dayWidth}px;width:${dayWidth}px;" title="${dayLoadInfo(i).title}"></div>`;
       }
     });
     return html;
@@ -905,33 +955,17 @@
     // Anche un carico leggero deve essere percepibile, non solo quello vicino al 100%.
     return (0.15 + ratio * 0.65).toFixed(2);
   }
-  function loadRowHtml(dates) {
-    const showNumbers = dayWidth >= DAY_ROW_MIN_WIDTH;
-    let html = `<tr class="load-row"><th class="sticky-col load-row-label">Carico operai previsto</th>`;
-    dates.forEach((d, i) => {
-      const sum = dailyAssignedSum(i);
-      const over = totalWorkers > 0 ? sum > totalWorkers : sum > 0;
-      const ratio = dailyLoadRatio(i);
-      let cls = "load-cell", bg, textColor, title;
-      if (over) {
-        cls += " load-cell-over";
-        bg = "#991B1B";
-        textColor = "#fff";
-        title = `${sum} / ${totalWorkers} operai richiesti — supera la disponibilità`;
-      } else if (ratio > 0) {
-        bg = `rgba(220,38,38,${loadColorAlpha(ratio)})`;
-        textColor = ratio > 0.55 ? "#fff" : "#64748B";
-        title = `${sum} / ${totalWorkers} operai impegnati`;
-      } else {
-        bg = "#F8FAFC";
-        textColor = "#64748B";
-        title = `${sum} / ${totalWorkers} operai impegnati`;
-      }
-      const label = (showNumbers && sum > 0) ? sum : "";
-      html += `<th class="${cls}" style="min-width:${dayWidth}px;width:${dayWidth}px;background-color:${bg};color:${textColor};" title="${title}">${label}</th>`;
-    });
-    html += "</tr>";
-    return html;
+  // Colore e tooltip del carico previsto di un giorno, applicati alla cella della data
+  function dayLoadInfo(i) {
+    const sum = dailyAssignedSum(i);
+    const over = totalWorkers > 0 ? sum > totalWorkers : sum > 0;
+    const ratio = dailyLoadRatio(i);
+    const title = over
+      ? `${sum} / ${totalWorkers} operai richiesti — supera la disponibilità`
+      : `${sum} / ${totalWorkers} operai impegnati`;
+    if (over) return { over: true, bg: "#991B1B", color: "#fff", title };
+    if (ratio > 0) return { over: false, bg: `rgba(220,38,38,${loadColorAlpha(ratio)})`, color: ratio > 0.55 ? "#fff" : "#64748B", title };
+    return { over: false, bg: null, color: null, title };
   }
 
   // Somma degli operai effettivamente presenti (a eccezioni: default = previsto) su tutti i
@@ -1108,17 +1142,81 @@
     document.addEventListener("touchend", onUp);
   }
 
-  // Zoom orizzontale: ricentra la vista sul giorno che era al centro prima dello zoom
-  function zoomMonthly(delta) {
+  // Imposta l'offset "top" di ogni riga dell'intestazione = somma delle altezze di quelle sopra
+  function positionStickyHeaders() {
+    const rows = document.querySelectorAll("#ganttTable thead tr");
+    let top = 0;
+    rows.forEach(tr => {
+      tr.querySelectorAll("th").forEach(th => { th.style.top = top + "px"; });
+      top += tr.offsetHeight;
+    });
+  }
+
+  // Zoom orizzontale ancorato: il giorno sotto il puntatore (o il punto indicato) resta fermo.
+  // anchorX = coordinata X in pixel dentro l'area visibile del calendario.
+  function setZoomAnchored(newWidth, anchorX) {
     const container = document.getElementById("ganttScrollWrap");
-    const oldWidth = dayWidth;
-    const centerDayIdx = container ? (container.scrollLeft + container.clientWidth / 2) / oldWidth : 0;
-    dayWidth = clamp(dayWidth + delta, 3, 40);
+    newWidth = clamp(newWidth, MIN_DAY_WIDTH, 40);
+    if (!container || newWidth === dayWidth) return;
+    if (anchorX == null) anchorX = container.clientWidth / 2;
+    const anchorDay = (container.scrollLeft + anchorX) / dayWidth;
+    dayWidth = newWidth;
     renderMonthly();
-    if (container) {
-      container.scrollLeft = Math.max(0, centerDayIdx * dayWidth - container.clientWidth / 2);
-    }
+    container.scrollLeft = Math.max(0, anchorDay * dayWidth - anchorX);
     updateMonthlyLabel();
+    scheduleBarLabelUpdate();
+  }
+
+  // Compatibilità: zoom centrato sulla vista
+  function zoomMonthly(delta) { setZoomAnchored(dayWidth + delta, null); }
+
+  // Rotellina: Ctrl = zoom (anche il pizzico su touchpad arriva come Ctrl+rotellina),
+  // Maiusc = scorrimento laterale.
+  function setupWheelAndPinch() {
+    const container = document.getElementById("ganttScrollWrap");
+    let wheelAcc = 0;
+    container.addEventListener("wheel", (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const rect = container.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        // proporzionale: una tacca di rotellina ~ +/-15%, il pizzico del touchpad (delta piccoli) è più fine
+        const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+        let target = dayWidth * Math.exp(-dy * 0.0016);
+        let nw = Math.round(target);
+        if (nw === dayWidth && Math.abs(dy) > 0) {
+          wheelAcc += dy;
+          if (Math.abs(wheelAcc) >= 20) { nw = dayWidth + (wheelAcc < 0 ? 1 : -1); wheelAcc = 0; }
+        }
+        setZoomAnchored(nw, x);
+      } else if (e.shiftKey) {
+        e.preventDefault();
+        const d = e.deltaX || e.deltaY;
+        container.scrollLeft += e.deltaMode === 1 ? d * 16 : d;
+      }
+    }, { passive: false });
+
+    // Pizzico con due dita (touch)
+    let pinch = null;
+    const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    container.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 2) {
+        const rect = container.getBoundingClientRect();
+        pinch = { d0: dist(e.touches), w0: dayWidth,
+                  x: (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left };
+      }
+    }, { passive: true });
+    container.addEventListener("touchmove", (e) => {
+      if (pinch && e.touches.length === 2) {
+        e.preventDefault();
+        const rect = container.getBoundingClientRect();
+        pinch.x = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+        setZoomAnchored(Math.round(pinch.w0 * dist(e.touches) / pinch.d0), pinch.x);
+      }
+    }, { passive: false });
+    const end = (e) => { if (e.touches.length < 2) pinch = null; };
+    container.addEventListener("touchend", end, { passive: true });
+    container.addEventListener("touchcancel", end, { passive: true });
   }
 
   // Navigazione rapida da un mese al successivo/precedente
@@ -1241,7 +1339,7 @@
     }
     function onUp() {
       cleanup();
-      if (!dragging) centerCalendarOnSite(idx);
+      if (!dragging) toggleSiteFocus(idx);
     }
     function cleanup() {
       document.removeEventListener("mousemove", onMove);
@@ -1377,6 +1475,161 @@
   }
 
   // ---------- CLIC SINISTRO: centra il calendario su tutte le fasi del cantiere ----------
+  // ---------- TOOLTIP PERSONALIZZATO ----------
+  // Un tooltip nativo non si può formattare: questo è un riquadro HTML che segue il puntatore.
+  // Si appoggia agli attributi data-tip-site / data-tip-seg / data-tip-day degli elementi.
+  const tipEl = document.createElement("div");
+  tipEl.className = "tip";
+  document.body.appendChild(tipEl);
+  let tipTarget = null;
+
+  function plural(n, one, many) { return `${n} ${n === 1 ? one : many}`; }
+
+  function tipHtmlFor(el) {
+    const dates = state.dates;
+    const siteIdx = el.dataset.tipSite;
+    if (siteIdx !== undefined) {
+      const site = state.sites[Number(siteIdx)];
+      if (!site) return "";
+      const hex = siteColorHex(site);
+      const segs = site.segments || [];
+      const head = `<div class="tip-head"><span class="tip-dot" style="background:${hex};"></span>${escAttr(site.name)}</div>`;
+      if (el.dataset.tipSeg !== undefined) {
+        const seg = segs[Number(el.dataset.tipSeg)];
+        if (!seg) return "";
+        const desc = (seg.desc || "").trim();
+        const wd = workdaysCount(dates, seg.start, seg.end);
+        return `<div class="tip-head"><span class="tip-dot" style="background:${hex};"></span>${escAttr(desc || site.name)}</div>`
+          + (desc ? `<div class="tip-sub">${escAttr(site.name)}</div>` : "")
+          + `<dl class="tip-grid">
+              <dt>N° operai</dt><dd>${seg.workers || 0}</dd>
+              <dt>Inizio</dt><dd>${dates[seg.start].label}</dd>
+              <dt>Fine</dt><dd>${dates[seg.end].label}</dd>
+              <dt>Durata</dt><dd>${plural(wd, "giorno feriale", "giorni feriali")}</dd>
+            </dl>`;
+      }
+      if (!segs.length) return head + `<div class="tip-sub">Nessuna fase pianificata</div><div class="tip-foot">Clicca sul calendario per aggiungerne una</div>`;
+      const first = Math.min(...segs.map(g => g.start));
+      const last = Math.max(...segs.map(g => g.end));
+      const wd = segs.reduce((a, g) => a + workdaysCount(dates, g.start, g.end), 0);
+      const ws = segs.map(g => g.workers || 0);
+      const wMin = Math.min(...ws), wMax = Math.max(...ws);
+      const phases = segs.length > 1
+        ? `<div class="tip-phases">${segs.slice(0, 6).map(g =>
+            `<div><span>${escAttr((g.desc || "").trim() || "Fase")}</span><span>${dates[g.start].label.slice(0, 5)} → ${dates[g.end].label.slice(0, 5)} · ${g.workers || 0} op.</span></div>`
+          ).join("")}${segs.length > 6 ? `<div><span>… e altre ${segs.length - 6}</span></div>` : ""}</div>`
+        : "";
+      return head + `<dl class="tip-grid">
+          <dt>N° operai</dt><dd>${wMin === wMax ? wMax : `${wMin}–${wMax}`}</dd>
+          <dt>Inizio</dt><dd>${dates[first].label}</dd>
+          <dt>Fine</dt><dd>${dates[last].label}</dd>
+          <dt>Durata</dt><dd>${plural(wd, "giorno feriale", "giorni feriali")}</dd>
+          <dt>Fasi</dt><dd>${segs.length}</dd>
+        </dl>` + phases
+        + `<div class="tip-foot">Clic: tutta la durata · doppio clic: rinomina · trascina: riordina</div>`;
+    }
+    const dayIdx = el.dataset.tipDay;
+    if (dayIdx !== undefined) {
+      const i = Number(dayIdx);
+      const d = dates[i];
+      if (!d) return "";
+      const li = dayLoadInfo(i);
+      const sum = dailyAssignedSum(i);
+      return `<div class="tip-head">${d.label}</div>
+        <dl class="tip-grid"><dt>Operai impiegati</dt><dd class="${li.over ? "tip-over" : ""}">${sum} / ${totalWorkers}</dd></dl>`
+        + (li.over ? `<div class="tip-foot tip-over">Supera la disponibilità</div>` : "");
+    }
+    return "";
+  }
+
+  function moveTip(e) {
+    const pad = 14;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    const w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+    if (x + w > window.innerWidth - 8) x = e.clientX - w - pad;
+    if (y + h > window.innerHeight - 8) y = e.clientY - h - pad;
+    tipEl.style.left = Math.max(8, x) + "px";
+    tipEl.style.top = Math.max(8, y) + "px";
+  }
+  function hideTip() { tipTarget = null; tipEl.style.display = "none"; }
+
+  function setupTooltips() {
+    const wrap = document.getElementById("ganttScrollWrap");
+    wrap.addEventListener("mouseover", (e) => {
+      if (e.buttons) return; // durante un trascinamento niente tooltip
+      if (e.target.closest("button, [data-no-tip], input")) { hideTip(); return; }
+      const el = e.target.closest("[data-tip-seg], [data-tip-site], [data-tip-day]");
+      if (!el) { hideTip(); return; }
+      if (el === tipTarget) return;
+      const html = tipHtmlFor(el);
+      if (!html) { hideTip(); return; }
+      tipTarget = el;
+      tipEl.innerHTML = html;
+      tipEl.style.display = "block";
+      moveTip(e);
+    });
+    wrap.addEventListener("mousemove", (e) => { if (tipTarget) moveTip(e); });
+    wrap.addEventListener("mouseleave", hideTip);
+    wrap.addEventListener("mousedown", hideTip);
+    wrap.addEventListener("scroll", hideTip, { passive: true });
+    wrap.addEventListener("contextmenu", hideTip);
+    wrap.addEventListener("touchstart", hideTip, { passive: true });
+  }
+
+  // ---------- FOCUS SU UN CANTIERE ----------
+  // Clic sul nome: la vista si adatta per mostrare tutta la durata del cantiere (dalla prima
+  // all'ultima fase) e gli altri cantieri vengono attenuati. Un nuovo clic sullo stesso nome,
+  // oppure Esc, ripristina zoom e posizione precedenti.
+  let focusedSite = null;
+  let focusRestore = null;
+
+  function toggleSiteFocus(idx) {
+    const site = state.sites[idx];
+    const container = document.getElementById("ganttScrollWrap");
+    if (!site || !container) return;
+    if (focusedSite === site) { clearSiteFocus(); return; }
+    const segs = site.segments || [];
+    if (!segs.length) return;
+    // il clic sul nome non sposta il fuoco: se un campo (es. il colore) lo ha ancora, lo si toglie,
+    // altrimenti Esc verrebbe ignorato
+    if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+    if (!focusedSite) focusRestore = { dayWidth, scrollLeft: container.scrollLeft };
+    focusedSite = site;
+    const first = Math.min(...segs.map(sg => sg.start));
+    const last = Math.max(...segs.map(sg => sg.end));
+    const days = last - first + 1;
+    const avail = Math.max(100, container.clientWidth - stickyWidth); // spazio per le barre
+    const margin = avail * 0.06;
+    dayWidth = clamp(Math.floor((avail - 2 * margin) / days), MIN_DAY_WIDTH, 40);
+    renderMonthly();
+    // se la durata è più corta dello spazio, la centra; altrimenti parte dal margine
+    const barsWidth = days * dayWidth;
+    const pad = Math.max(margin, (avail - barsWidth) / 2);
+    container.scrollLeft = Math.max(0, first * dayWidth - pad);
+    updateMonthlyLabel();
+    scheduleBarLabelUpdate();
+  }
+
+  function clearSiteFocus() {
+    if (!focusedSite) return;
+    const container = document.getElementById("ganttScrollWrap");
+    focusedSite = null;
+    const r = focusRestore; focusRestore = null;
+    if (r) dayWidth = r.dayWidth;
+    renderMonthly();
+    if (r && container) container.scrollLeft = r.scrollLeft;
+    updateMonthlyLabel();
+    scheduleBarLabelUpdate();
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !focusedSite) return;
+    // Esc non deve interrompere chi sta scrivendo in un campo di testo/data/numero
+    const t = e.target;
+    const typing = t && (t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && !["color", "checkbox", "button", "file"].includes(t.type)));
+    if (typing || document.getElementById("dateMenu")) return;
+    clearSiteFocus();
+  }, true);
+
   function centerCalendarOnSite(idx) {
     const site = state.sites[idx];
     if (!site.segments || !site.segments.length) return;
@@ -1677,7 +1930,8 @@
       <div class="date-menu-title">${state.sites[idx].name}</div>
       <label class="date-menu-field">Inizio<input type="date" id="dateMenuStart" value="${startVal}"></label>
       <label class="date-menu-field">Fine<input type="date" id="dateMenuEnd" value="${endVal}"></label>
-      <label class="date-menu-field">Operai<input type="number" id="dateMenuWorkers" min="0" value="${seg.workers || 0}"></label>
+      <label class="date-menu-field">Descrizione lavoro<input type="text" id="dateMenuDesc" maxlength="80" placeholder="es. Scavi e fondazioni" value="${escAttr(seg.desc || "")}"></label>
+      <label class="date-menu-field">N° operai<input type="number" id="dateMenuWorkers" min="0" value="${seg.workers || 0}"></label>
       <div class="date-menu-utility">
         <button type="button" class="date-menu-split" onclick="splitSegmentFromMenu(${idx}, ${segIdx}, ${clickedDayIdx})" title="Divide questa fase in due nel punto cliccato, con un giorno di vuoto in mezzo">&#9986; Dividi qui</button>
         <button type="button" class="date-menu-delete" onclick="removeSegmentFromMenu(${idx}, ${segIdx})">Elimina fase</button>
@@ -1692,6 +1946,10 @@
     menu.style.left = Math.max(8, x) + "px";
     menu.style.top = Math.max(8, y) + "px";
     setTimeout(() => document.addEventListener("mousedown", onDateMenuOutsideClick), 0);
+  }
+
+  function escAttr(t) {
+    return String(t).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
   function removeSegmentFromMenu(idx, segIdx) {
@@ -1710,8 +1968,8 @@
     const cut = clamp(splitDayIdx, seg.start + 1, seg.end - 1);
     pushUndo();
     segs.splice(segIdx, 1,
-      { start: seg.start, end: cut - 1, workers: seg.workers || 0 },
-      { start: cut + 1, end: seg.end, workers: seg.workers || 0 }
+      { start: seg.start, end: cut - 1, workers: seg.workers || 0, desc: seg.desc },
+      { start: cut + 1, end: seg.end, workers: seg.workers || 0, desc: seg.desc }
     );
     segs.sort((a, b) => a.start - b.start);
     closeDateMenu();
@@ -1736,6 +1994,9 @@
     state.sites[idx].segments[segIdx].start = Math.min(startIdx, endIdx);
     state.sites[idx].segments[segIdx].end = Math.max(startIdx, endIdx);
     state.sites[idx].segments[segIdx].workers = workers;
+    const descInput = document.getElementById("dateMenuDesc");
+    const descVal = descInput ? descInput.value.trim() : "";
+    state.sites[idx].segments[segIdx].desc = descVal || undefined;
     mergeAdjacentSegments(state.sites[idx]);
     closeDateMenu();
     fitCalendarToSites();
@@ -1814,6 +2075,7 @@
           start: newIndexByKey.has(sKey) ? newIndexByKey.get(sKey) : 0,
           end: newIndexByKey.has(eKey) ? newIndexByKey.get(eKey) : newDates.length - 1,
           workers: seg.workers || 0,
+          desc: seg.desc || undefined,
           actual: newActual
         };
       });
@@ -1957,6 +2219,7 @@
         name: s.name, colorClass: s.colorClass, color: s.color || null, ops: s.ops,
         segments: (s.segments || []).map(seg => ({
           start: seg.start, end: seg.end, workers: seg.workers || 0,
+          desc: seg.desc || undefined,
           actual: seg.actual || undefined
         }))
       })),
@@ -1991,6 +2254,7 @@
             return {
               start: seg.start, end: seg.end,
               workers: (typeof seg.workers === "number") ? seg.workers : legacyWorkers,
+              desc: (typeof seg.desc === "string" && seg.desc.trim()) ? seg.desc.trim() : undefined,
               actual
             };
           });
@@ -2230,6 +2494,8 @@
 
   async function bootReadonly() {
     document.body.classList.add("readonly");
+    setupWheelAndPinch();
+    setupTooltips();
     applyStickyWidth();
     await loadSharedIntoView();
     setInterval(loadSharedIntoView, 20000); // si aggiorna da sola, niente da premere
@@ -2241,6 +2507,8 @@
 
   async function boot() {
     if (READONLY) { await bootReadonly(); return; }
+    setupWheelAndPinch();
+    setupTooltips();
 
     applyStickyWidth();
     const restored = await loadSavedState();
