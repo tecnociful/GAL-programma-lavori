@@ -272,6 +272,19 @@
   .tip-phases div { display: flex; justify-content: space-between; gap: 10px; }
   .tip-phases span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tip-foot { margin-top: 8px; font-size: 0.68rem; color: #94A3B8; }
+  /* Milestone: rombo sulla riga del cantiere, vuoto = da completare, pieno = completata */
+  .milestone {
+    position: absolute; z-index: 7; width: 14px; height: 14px; margin: -7px 0 0 -7px; cursor: grab;
+  }
+  .ms-diamond {
+    position: absolute; left: 0; top: 0; width: 14px; height: 14px; box-sizing: border-box;
+    transform: rotate(45deg); border: 2.5px solid currentColor; background: #fff;
+    box-shadow: 0 0 0 2px #fff, 0 1px 4px rgba(0,0,0,0.3); border-radius: 2px;
+  }
+  .milestone.ms-done .ms-diamond { background: currentColor; }
+  .milestone:hover .ms-diamond { transform: rotate(45deg) scale(1.2); }
+  body.readonly .milestone { cursor: default; }
+  .date-menu-field.date-menu-check { flex-direction: row; align-items: center; gap: 8px; }
   .over-stripe {
     position: absolute; top: 0; bottom: 0; background: rgba(220, 38, 38, 0.13);
     pointer-events: none; z-index: 0;
@@ -732,7 +745,7 @@
       // Sfondo sempre presente (sotto le barre): un clic in una zona libera crea una nuova
       // fase lì. Il testo di invito si vede solo quando il cantiere non ha ancora fasi.
       const emptyHint = segs.length ? "" : "clicca per pianificare questo cantiere";
-      html += `<div class="gantt-empty" onclick="addSegment(event, ${idx})" title="Clicca per aggiungere una fase">${emptyHint}</div>`;
+      html += `<div class="gantt-empty" onclick="addSegment(event, ${idx})" oncontextmenu="openMilestoneMenu(event, ${idx}, -1)" title="Clicca per aggiungere una fase · tasto destro: aggiungi milestone">${emptyHint}</div>`;
       segs.forEach((seg, segIdx) => {
         const left = seg.start * dayWidth;
         const width = (seg.end - seg.start + 1) * dayWidth;
@@ -795,6 +808,15 @@
                     <span class="bar-label" style="max-width:${Math.max(10, width - 8)}px;">${wLabel}</span>
                     <button class="bar-del" onmousedown="event.stopPropagation()" onclick="removeSegment(event, ${idx}, ${segIdx})" title="Rimuovi questa fase">&times;</button>
                     <span class="handle handle-right" onmousedown="startBarDrag(event, ${idx}, ${segIdx}, 'right')" ontouchstart="startBarDrag(event, ${idx}, ${segIdx}, 'right')"></span>
+                  </div>`;
+      });
+      (site.milestones || []).forEach((m, mi) => {
+        if (m.day < 0 || m.day >= dates.length) return;
+        html += `<div class="milestone${m.done ? " ms-done" : ""}" style="left:${(m.day + 0.5) * dayWidth}px;top:${trackHeight / 2}px;color:${siteColorHex(site)};"
+                    data-tip-site="${idx}" data-tip-ms="${mi}"
+                    onmousedown="startMilestoneDrag(event, ${idx}, ${mi})" ontouchstart="startMilestoneDrag(event, ${idx}, ${mi})"
+                    oncontextmenu="openMilestoneMenu(event, ${idx}, ${mi})">
+                    <span class="ms-diamond"></span>
                   </div>`;
       });
       html += `</div></td></tr>`;
@@ -1166,10 +1188,11 @@
     newWidth = Math.round(clamp(newWidth, MIN_DAY_WIDTH, 40) * 16) / 16;
     if (!container || newWidth === dayWidth) return;
     if (anchorX == null) anchorX = container.clientWidth / 2;
-    const anchorDay = (container.scrollLeft + anchorX) / dayWidth;
+    // il giorno 0 inizia dopo la colonna dei nomi: i giorni si contano da lì
+    const anchorDay = (container.scrollLeft + anchorX - stickyWidth) / dayWidth;
     dayWidth = newWidth;
     renderMonthly();
-    container.scrollLeft = Math.max(0, anchorDay * dayWidth - anchorX);
+    container.scrollLeft = Math.max(0, stickyWidth + anchorDay * dayWidth - anchorX);
     updateMonthlyLabel();
     scheduleBarLabelUpdate();
   }
@@ -1196,38 +1219,46 @@
       }
     }, { passive: false });
 
-    // Pizzico con due dita (touch)
+    // Pizzico con due dita (touch).
+    // Durante il gesto NON si ridisegna il calendario (è pesante e su telefono dà scatti): si
+    // allarga/restringe soltanto l'immagine della tabella con una trasformazione grafica, che la
+    // GPU fa a ogni fotogramma in modo fluido. Alla fine del gesto si ridisegna una volta sola
+    // alla larghezza definitiva, e le barre tornano nitide.
+    const table = document.getElementById("ganttTable");
     let pinch = null;
     const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const midX = (t, rect) => (t[0].clientX + t[1].clientX) / 2 - rect.left;
     container.addEventListener("touchstart", (e) => {
       if (e.touches.length === 2) {
         const rect = container.getBoundingClientRect();
-        pinch = { d0: dist(e.touches), w0: dayWidth,
-                  x: (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left };
+        const x0 = midX(e.touches, rect);
+        pinch = { d0: dist(e.touches) || 1, w0: dayWidth, x0, dx: 0, k: 1, scroll0: container.scrollLeft };
+        table.style.transformOrigin = `${container.scrollLeft + x0}px 0`;
+        table.style.willChange = "transform";
       }
     }, { passive: true });
-    // Le misure del dito arrivano a raffica: si tiene l'ultima e si ridisegna al massimo una volta
-    // per fotogramma, con larghezza frazionaria, così lo zoom segue il gesto in modo fluido.
-    let pinchFrame = 0, pinchTarget = null;
     container.addEventListener("touchmove", (e) => {
       if (pinch && e.touches.length === 2) {
         e.preventDefault();
         const rect = container.getBoundingClientRect();
-        pinchTarget = {
-          w: pinch.w0 * dist(e.touches) / pinch.d0,
-          x: (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left
-        };
-        if (!pinchFrame) {
-          pinchFrame = requestAnimationFrame(() => {
-            pinchFrame = 0;
-            if (pinchTarget) setZoomAnchored(pinchTarget.w, pinchTarget.x);
-          });
-        }
+        pinch.k = clamp(dist(e.touches) / pinch.d0, MIN_DAY_WIDTH / pinch.w0, 40 / pinch.w0);
+        pinch.dx = midX(e.touches, rect) - pinch.x0;
+        table.style.transform = `translateX(${pinch.dx}px) scaleX(${pinch.k})`;
       }
     }, { passive: false });
-    const end = (e) => { if (e.touches.length < 2) pinch = null; };
-    container.addEventListener("touchend", end, { passive: true });
-    container.addEventListener("touchcancel", end, { passive: true });
+    const endPinch = (e) => {
+      if (!pinch || e.touches.length >= 2) return;
+      const p = pinch; pinch = null;
+      table.style.transform = "";
+      table.style.willChange = "";
+      container.scrollLeft = p.scroll0;
+      setZoomAnchored(p.w0 * p.k, p.x0);
+      container.scrollLeft = Math.max(0, container.scrollLeft - p.dx); // segue anche lo spostamento delle dita
+      updateMonthlyLabel();
+      scheduleBarLabelUpdate();
+    };
+    container.addEventListener("touchend", endPinch, { passive: true });
+    container.addEventListener("touchcancel", endPinch, { passive: true });
   }
 
   // ---------- SCHERMO INTERO ----------
@@ -1299,6 +1330,7 @@
       name: "Nuovo cantiere",
       colorClass: nextColor(),
       ops: state.dates.map(() => 0),
+      milestones: [],
       segments: []
     };
     state.sites.push(newSite);
@@ -1535,6 +1567,20 @@
       if (!site) return "";
       const hex = siteColorHex(site);
       const segs = site.segments || [];
+      if (el.dataset.tipMs !== undefined) {
+        const m = (site.milestones || [])[Number(el.dataset.tipMs)];
+        if (!m) return "";
+        const tIdx = todayIndex(dates);
+        const diff = tIdx === -1 ? null : m.day - tIdx;
+        const rel = diff === null ? "" : (diff === 0 ? "oggi" : (diff > 0 ? `tra ${plural(diff, "giorno", "giorni")}` : `${plural(-diff, "giorno", "giorni")} fa`));
+        return `<div class="tip-head"><span class="tip-dot" style="background:${hex};"></span>&#9670; ${escAttr(m.label || "Milestone")}</div>
+          <div class="tip-sub">${escAttr(site.name)}</div>
+          <dl class="tip-grid">
+            <dt>Data</dt><dd>${dates[m.day].label}</dd>
+            <dt>Stato</dt><dd>${m.done ? "Completata" : (diff !== null && diff < 0 ? "In ritardo" : "Da completare")}</dd>
+            ${rel ? `<dt>Scadenza</dt><dd>${rel}</dd>` : ""}
+          </dl>` + (READONLY ? "" : `<div class="tip-foot">Clic: modifica · trascina: sposta</div>`);
+      }
       const head = `<div class="tip-head"><span class="tip-dot" style="background:${hex};"></span>${escAttr(site.name)}</div>`;
       if (el.dataset.tipSeg !== undefined) {
         const seg = segs[Number(el.dataset.tipSeg)];
@@ -1616,6 +1662,18 @@
     wrap.addEventListener("scroll", hideTip, { passive: true });
     wrap.addEventListener("contextmenu", hideTip);
     wrap.addEventListener("touchstart", hideTip, { passive: true });
+    // Touch: un tocco su una milestone mostra il suo tooltip (non c'è il passaggio del mouse).
+    // Il "click" arriva dopo il mousedown simulato che nasconde i tooltip, quindi lo mostriamo qui.
+    wrap.addEventListener("click", (e) => {
+      const el = e.target.closest("[data-tip-ms]");
+      if (!el) return;
+      const html = tipHtmlFor(el);
+      if (!html) return;
+      tipTarget = el;
+      tipEl.innerHTML = html;
+      tipEl.style.display = "block";
+      moveTip(e);
+    });
   }
 
   // ---------- FOCUS SU UN CANTIERE ----------
@@ -1637,8 +1695,9 @@
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
     if (!focusedSite) focusRestore = { dayWidth, scrollLeft: container.scrollLeft };
     focusedSite = site;
-    const first = Math.min(...segs.map(sg => sg.start));
-    const last = Math.max(...segs.map(sg => sg.end));
+    const msDays = (site.milestones || []).map(m => m.day);
+    const first = Math.min(...segs.map(sg => sg.start), ...msDays);
+    const last = Math.max(...segs.map(sg => sg.end), ...msDays);
     const days = last - first + 1;
     const avail = Math.max(100, container.clientWidth - stickyWidth); // spazio per le barre
     const margin = avail * 0.06;
@@ -1720,6 +1779,7 @@
       state.sites.forEach(s => {
         s.ops = new Array(shift).fill(0).concat(s.ops);
         (s.segments || []).forEach(seg => { seg.start += shift; seg.end += shift; shiftSegActualKeys(seg, shift); });
+        (s.milestones || []).forEach(m => { m.day += shift; });
       });
     } else {
       let y = state.dates[state.dates.length - 1].dateObj.getFullYear(), m = state.dates[state.dates.length - 1].dateObj.getMonth();
@@ -1977,6 +2037,7 @@
       <label class="date-menu-field">N° operai<input type="number" id="dateMenuWorkers" min="0" value="${seg.workers || 0}"></label>
       <div class="date-menu-utility">
         <button type="button" class="date-menu-split" onclick="splitSegmentFromMenu(${idx}, ${segIdx}, ${clickedDayIdx})" title="Divide questa fase in due nel punto cliccato, con un giorno di vuoto in mezzo">&#9986; Dividi qui</button>
+        <button type="button" class="date-menu-split" onclick="milestoneFromDateMenu(${idx}, ${clickedDayIdx})" title="Aggiunge una milestone nel giorno cliccato">&#9670; Milestone</button>
         <button type="button" class="date-menu-delete" onclick="removeSegmentFromMenu(${idx}, ${segIdx})">Elimina fase</button>
       </div>
       <div class="date-menu-actions">
@@ -1993,6 +2054,122 @@
 
   function escAttr(t) {
     return String(t).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // ---------- MILESTONE ----------
+  // Appartengono al cantiere (site.milestones = [{day, label, done}]), con un giorno preciso.
+  function milestoneFromDateMenu(idx, dayIdx) {
+    const menu = document.getElementById("dateMenu");
+    const x = menu ? parseFloat(menu.style.left) : 80, y = menu ? parseFloat(menu.style.top) : 80;
+    closeDateMenu();
+    openMilestoneMenuAt(idx, -1, dayIdx, x, y);
+  }
+
+  function openMilestoneMenu(evt, idx, mi) {
+    evt.preventDefault();
+    evt.stopPropagation();
+    if (READONLY) return;
+    let dayIdx = 0;
+    if (mi >= 0) {
+      dayIdx = state.sites[idx].milestones[mi].day;
+    } else {
+      const track = evt.currentTarget.closest(".gantt-track");
+      const rect = track.getBoundingClientRect();
+      dayIdx = clamp(Math.floor((evt.clientX - rect.left) / dayWidth), 0, state.dates.length - 1);
+    }
+    openMilestoneMenuAt(idx, mi, dayIdx, evt.clientX, evt.clientY);
+  }
+
+  function openMilestoneMenuAt(idx, mi, dayIdx, px, py) {
+    closeDateMenu();
+    const site = state.sites[idx];
+    const m = mi >= 0 ? site.milestones[mi] : { day: dayIdx, label: "", done: false };
+    const menu = document.createElement("div");
+    menu.id = "dateMenu";
+    menu.className = "date-menu";
+    menu.innerHTML = `
+      <div class="date-menu-title">&#9670; ${mi >= 0 ? "Modifica milestone" : "Nuova milestone"} &middot; ${escAttr(site.name)}</div>
+      <label class="date-menu-field">Descrizione<input type="text" id="msLabel" maxlength="60" placeholder="es. Collaudo, consegna materiali" value="${escAttr(m.label || "")}"></label>
+      <label class="date-menu-field">Data<input type="date" id="msDate" value="${isoDateOnly(state.dates[m.day].dateObj)}"></label>
+      <label class="date-menu-field date-menu-check"><input type="checkbox" id="msDone" ${m.done ? "checked" : ""}> Completata</label>
+      ${mi >= 0 ? `<div class="date-menu-utility"><button type="button" class="date-menu-delete" onclick="removeMilestone(${idx}, ${mi})">Elimina milestone</button></div>` : ""}
+      <div class="date-menu-actions">
+        <button type="button" class="date-menu-cancel" onclick="closeDateMenu()">Annulla</button>
+        <button type="button" class="date-menu-apply" onclick="applyMilestoneMenu(${idx}, ${mi})">Applica</button>
+      </div>`;
+    document.body.appendChild(menu);
+    menu.style.left = Math.max(8, Math.min(px, window.innerWidth - menu.offsetWidth - 12)) + "px";
+    menu.style.top = Math.max(8, Math.min(py, window.innerHeight - menu.offsetHeight - 12)) + "px";
+    setTimeout(() => document.addEventListener("mousedown", onDateMenuOutsideClick), 0);
+    const inp = document.getElementById("msLabel");
+    if (inp) inp.focus();
+  }
+
+  function applyMilestoneMenu(idx, mi) {
+    const label = document.getElementById("msLabel").value.trim();
+    const dateVal = document.getElementById("msDate").value;
+    const done = document.getElementById("msDone").checked;
+    if (!dateVal) { closeDateMenu(); return; }
+    const [y, mo, d] = dateVal.split("-").map(Number);
+    pushUndo();
+    const dayIdx = dateToIndexExtending(new Date(y, mo - 1, d));
+    const site = state.sites[idx];
+    if (!site.milestones) site.milestones = [];
+    const entry = { day: dayIdx, label, done };
+    if (mi >= 0) site.milestones[mi] = entry; else site.milestones.push(entry);
+    site.milestones.sort((a, b) => a.day - b.day);
+    closeDateMenu();
+    fitCalendarToSites();
+  }
+
+  function removeMilestone(idx, mi) {
+    closeDateMenu();
+    pushUndo();
+    state.sites[idx].milestones.splice(mi, 1);
+    fitCalendarToSites();
+  }
+
+  // Trascinamento orizzontale di una milestone
+  function startMilestoneDrag(evt, idx, mi) {
+    if (READONLY) return;
+    if (typeof evt.button === "number" && evt.button !== 0) return;
+    evt.preventDefault();
+    evt.stopPropagation();
+    const el = evt.currentTarget;
+    const track = el.closest(".gantt-track");
+    const getX = e => (e.touches ? e.touches[0].clientX : e.clientX);
+    const m = state.sites[idx].milestones[mi];
+    const startX = getX(evt);
+    const origDay = m.day;
+    let curDay = origDay, moved = false;
+    function onMove(e) {
+      if (e.cancelable) e.preventDefault();
+      const rect = track.getBoundingClientRect();
+      if (!moved && Math.abs(getX(e) - startX) < 4) return;
+      moved = true;
+      curDay = clamp(Math.floor((getX(e) - rect.left) / dayWidth), 0, state.dates.length - 1);
+      el.style.left = (curDay + 0.5) * dayWidth + "px";
+    }
+    function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onUp);
+      if (moved && curDay !== origDay) {
+        pushUndo();
+        m.day = curDay;
+        state.sites[idx].milestones.sort((a, b) => a.day - b.day);
+        fitCalendarToSites();
+      } else if (!moved) {
+        // un semplice clic apre la modifica
+        const r = el.getBoundingClientRect();
+        openMilestoneMenuAt(idx, mi, origDay, r.right + 6, r.top);
+      }
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onUp);
   }
 
   function removeSegmentFromMenu(idx, segIdx) {
@@ -2070,6 +2247,7 @@
       state.sites.forEach(s => {
         s.ops = new Array(shift).fill(0).concat(s.ops);
         (s.segments || []).forEach(seg => { seg.start += shift; seg.end += shift; shiftSegActualKeys(seg, shift); });
+        (s.milestones || []).forEach(m => { m.day += shift; });
       });
     }
     const adjustedMax = maxNeededIdx + shift;
@@ -2100,6 +2278,11 @@
         if (ni !== undefined) newOps[ni] = site.ops[oldI] || 0;
       });
       site.ops = newOps;
+      site.milestones = (site.milestones || []).map(m => {
+        const old = state.dates[m.day];
+        const ni = old ? newIndexByKey.get(dateKey(old.dateObj)) : undefined;
+        return ni === undefined ? null : { day: ni, label: m.label || "", done: !!m.done };
+      }).filter(Boolean);
       site.segments = (site.segments || []).map(seg => {
         const sKey = dateKey(state.dates[seg.start].dateObj);
         const eKey = dateKey(state.dates[seg.end].dateObj);
@@ -2135,6 +2318,10 @@
       (s.segments || []).forEach(seg => {
         if (minStart === null || seg.start < minStart) minStart = seg.start;
         if (maxEnd === null || seg.end > maxEnd) maxEnd = seg.end;
+      });
+      (s.milestones || []).forEach(m => {
+        if (minStart === null || m.day < minStart) minStart = m.day;
+        if (maxEnd === null || m.day > maxEnd) maxEnd = m.day;
       });
     });
     let startDate, endDate;
@@ -2260,6 +2447,7 @@
       dates: state.dates.map(d => d.dateObj.toISOString()),
       sites: state.sites.map(s => ({
         name: s.name, colorClass: s.colorClass, color: s.color || null, ops: s.ops,
+        milestones: (s.milestones || []).map(m => ({ day: m.day, label: m.label || "", done: !!m.done })),
         segments: (s.segments || []).map(seg => ({
           start: seg.start, end: seg.end, workers: seg.workers || 0,
           desc: seg.desc || undefined,
@@ -2312,6 +2500,10 @@
         colorClass: s.colorClass || "bg-a",
         color: (typeof s.color === "string" && s.color) ? s.color : null,
         ops: Array.isArray(s.ops) ? s.ops : dates.map(() => 0),
+        milestones: Array.isArray(s.milestones)
+          ? s.milestones.filter(m => m && Number.isInteger(m.day) && m.day >= 0 && m.day < dates.length)
+              .map(m => ({ day: m.day, label: String(m.label || "").slice(0, 60), done: !!m.done }))
+          : [],
         segments
       };
     });
