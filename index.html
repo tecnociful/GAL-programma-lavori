@@ -63,7 +63,7 @@
   body.readonly .readonly-badge { display: inline-block; }
 
   /* Modalità sola lettura (link con #vista): niente controlli di modifica */
-  body.readonly .controls-group { display: none; }
+  body.readonly .controls-group, body.readonly .tab-switch { display: none; }
   body.readonly .gantt-bar,
   body.readonly .gantt-empty,
   body.readonly .site-name {
@@ -170,7 +170,7 @@
     opacity: 0; cursor: pointer; padding: 0; border: none; background: none;
   }
   .site-name {
-    cursor: grab; flex: 1;
+    cursor: grab; flex: 1; overflow-wrap: anywhere;
     user-select: none; -webkit-user-select: none; -moz-user-select: none;
   }
   .site-name:hover { text-decoration: underline; }
@@ -244,6 +244,13 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .month-tick-label { display: inline-block; }
+  th.month-row { padding: 0; border-right: none; background: #E2E8F0; }
+  .month-track { position: relative; height: 24px; overflow: hidden; }
+  .month-track .month-tick {
+    position: absolute; top: 0; bottom: 0; box-sizing: border-box; padding: 0 2px;
+    display: flex; align-items: center; justify-content: center;
+    border-right: 1px solid var(--border);
+  }
 
   .op-input {
     width: 40px; font-size: 0.75rem; text-align: center;
@@ -299,6 +306,38 @@
     position: absolute; top: 0; bottom: 0; background: rgba(100, 116, 139, 0.14);
     pointer-events: none; z-index: 0;
   }
+  .hatch-stripe {
+    position: absolute; top: 0; bottom: 0; pointer-events: none; z-index: 0;
+    background-image: repeating-linear-gradient(135deg, rgba(100,116,139,0.30) 0, rgba(100,116,139,0.30) 1.5px, transparent 1.5px, transparent 6px);
+    background-color: rgba(100,116,139,0.05);
+  }
+  .day-tick-nw {
+    background-image: repeating-linear-gradient(135deg, rgba(100,116,139,0.30) 0, rgba(100,116,139,0.30) 1.5px, transparent 1.5px, transparent 5px);
+  }
+  .tab-switch { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .tab-btn {
+    background: #fff; border: none; padding: 7px 16px; font-size: 0.82rem; font-weight: 700;
+    color: #64748B; cursor: pointer;
+  }
+  .tab-btn + .tab-btn { border-left: 1px solid var(--border); }
+  .tab-btn.active { background: var(--primary); color: #fff; }
+  body.tab-presenze .only-cantieri { display: none !important; }
+  body:not(.tab-presenze) .only-presenze { display: none !important; }
+  .presence-bar {
+    position: absolute; border-radius: 5px; z-index: 2; cursor: grab; user-select: none;
+    background: #DCFCE7; border: 1.5px solid #16A34A; box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+  }
+  .presence-bar:active { cursor: grabbing; }
+  .presence-bar:hover .bar-del { opacity: 1; }
+  body.readonly .presence-bar { cursor: default; }
+  body.readonly .presence-bar .handle, body.readonly .presence-bar .bar-del,
+  body.readonly .worker-del { display: none; }
+  body.readonly .worker-name { pointer-events: none; }
+  .worker-name { cursor: text; }
+  .date-menu-sep { margin: 10px 0 6px; padding-top: 8px; border-top: 1px solid var(--border); font-weight: 700; color: #475569; font-size: 0.74rem; }
+  .closure-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid #F1F5F9; }
+  .closure-row span { color: #64748B; font-size: 0.72rem; }
+  .closure-note { color: #64748B; font-size: 0.72rem; margin: 8px 0 0; line-height: 1.35; }
   .today-stripe {
     position: absolute; top: 0; bottom: 0; width: 2px; background: #DC2626;
     pointer-events: none; z-index: 1; box-shadow: 0 0 4px rgba(220, 38, 38, 0.5);
@@ -384,14 +423,19 @@
   </div>
 
   <div class="tabs">
+    <div class="tab-switch" role="tablist">
+      <button id="tabCantieri" class="tab-btn active" onclick="setTab('cantieri')">Cantieri</button>
+      <button id="tabPresenze" class="tab-btn" onclick="setTab('presenze')">Presenze</button>
+    </div>
     <div class="controls-group">
       <button id="undoBtn" class="btn-add" onclick="undoLast()" title="Annulla l'ultima azione (Ctrl+Z)" disabled>&#8634; Annulla</button>
       <span class="controls-sep"></span>
-      <button class="btn-add" onclick="addSite()">+ Nuovo cantiere</button>
+      <button class="btn-add only-cantieri" onclick="addSite()">+ Nuovo cantiere</button>
+      <button class="btn-add only-presenze" onclick="addWorker()">+ Nuovo operaio</button>
       <span class="controls-sep"></span>
-      <button id="workforceBtn" class="btn-add" onclick="openWorkforceMenu(event)" title="Imposta il numero totale di operai disponibili">&#128119; Disponibilità operai: 15</button>
-      <button class="btn-add" onclick="sortSitesByRelevance()" title="Attivi (per operai oggi), poi futuri (per data di inizio), poi terminati">&#8597; Ordina per rilevanza</button>
-      <button id="toggleActualBtn" class="btn-add" onclick="toggleActualView()" title="Mostra/nasconde la barra e la riga del reale">&#128065; Mostra reale</button>
+      <button id="closuresBtn" class="btn-add" onclick="openClosuresMenu(event)" title="Chiusure aziendali (ferie collettive, ponti...). Le domeniche e le festività nazionali sono già escluse.">&#128197; Chiusure</button>
+      <button class="btn-add only-cantieri" onclick="sortSitesByRelevance()" title="Attivi (per operai oggi), poi futuri (per data di inizio), poi terminati">&#8597; Ordina per rilevanza</button>
+      <button id="toggleActualBtn" class="btn-add only-cantieri" onclick="toggleActualView()" title="Mostra/nasconde la barra e la riga del reale">&#128065; Mostra reale</button>
       <span class="controls-sep"></span>
       <button class="btn-add" onclick="exportPlan()" title="Salva questa pianificazione come file, da aprire anche con Importa nella versione da cellulare">&#11015; Esporta</button>
       <button class="btn-add" onclick="document.getElementById('importFileInput').click()" title="Carica una pianificazione salvata in precedenza">&#11014; Importa</button>
@@ -452,7 +496,22 @@
   let currentMonthKey = null;
   let dayWidth = 16;          // livello di zoom orizzontale della vista mensile
   let monthlyScrollIdx = 0;   // indice del mese attualmente "a fuoco" nella vista mensile
-  let totalWorkers = 15;      // operai totali disponibili, usati per la formattazione condizionale
+  // Presenze: l'organico è l'elenco degli operai (solo iniziali/sigle). Le barre di presenza sono
+  // salvate come date ISO (non come indici) perché il calendario si allarga/restringe da solo.
+  let currentTab = "cantieri";
+  let workers = [];           // [{name, bars:[{s:"AAAA-MM-GG", e:"AAAA-MM-GG"}]}]
+  let closures = [];          // [{label, from, to, yearly}] yearly: "MM-GG"; altrimenti "AAAA-MM-GG"
+  let seededYears = [];       // anni per cui è già stata creata la barra di default (1 mar - 31 dic)
+  let presenceFrom = null;    // primo anno di cui si tengono le presenze (prima: disponibilità non nota)
+  function makeWorkers(n) { return Array.from({ length: n }, (_, i) => ({ name: "Op. " + (i + 1), bars: [] })); }
+  function defaultClosures() {
+    return [
+      { label: "Chiusura natalizia", from: "12-24", to: "01-06", yearly: true },
+      { label: "Chiusura invernale", from: "01-01", to: "02-29", yearly: true }
+    ];
+  }
+  workers = makeWorkers(15);
+  closures = defaultClosures();
   let showActual = false;     // mostra/nasconde la barra e la riga del reale (solo preferenza di vista)
   // Indirizzi di base: non sono un segreto (il file su GitHub è pubblico), quindi li scrivo
   // qui direttamente invece di richiedere una configurazione su ogni dispositivo. Il pannello
@@ -474,7 +533,7 @@
 
   function barHeightForWorkers(w) {
     if (!w || w <= 0) return BAR_MIN_HEIGHT;
-    const ratio = totalWorkers > 0 ? Math.min(1, w / totalWorkers) : 1;
+    const ratio = workers.length > 0 ? Math.min(1, w / workers.length) : 1;
     return Math.round(BAR_MIN_HEIGHT + ratio * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT));
   }
 
@@ -483,7 +542,7 @@
   // differenza della barra prevista, che resta sempre cliccabile con un filo di spessore).
   function overlayHeightForWorkers(w) {
     if (!w || w <= 0) return 0;
-    const ratio = totalWorkers > 0 ? Math.min(1, w / totalWorkers) : 1;
+    const ratio = workers.length > 0 ? Math.min(1, w / workers.length) : 1;
     return Math.round(BAR_MIN_HEIGHT + ratio * (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT));
   }
 
@@ -538,7 +597,10 @@
       dates: state.dates.map(d => d.dateObj.toISOString()),
       sites: JSON.parse(JSON.stringify(state.sites)),
       currentMonthKey,
-      totalWorkers
+      workers: JSON.parse(JSON.stringify(workers)),
+      closures: JSON.parse(JSON.stringify(closures)),
+      seededYears: seededYears.slice(),
+      presenceFrom
     };
   }
 
@@ -561,7 +623,9 @@
       sites: snap.sites
     };
     currentMonthKey = snap.currentMonthKey;
-    if (typeof snap.totalWorkers === "number") totalWorkers = snap.totalWorkers;
+    if (snap.workers) {
+      workers = snap.workers; closures = snap.closures; seededYears = snap.seededYears; presenceFrom = snap.presenceFrom;
+    }
     renderApp();
     updateMonthlyLabel();
     updateUndoButton();
@@ -626,8 +690,6 @@
 
   function renderApp() {
     renderMonthly();
-    const wb = document.getElementById("workforceBtn");
-    if (wb) wb.innerHTML = "&#128119; Disponibilità operai: " + totalWorkers;
     const tab = document.getElementById("toggleActualBtn");
     if (tab) tab.innerHTML = showActual ? "&#128065; Nascondi reale" : "&#128065; Mostra reale";
   }
@@ -686,6 +748,7 @@
     let dec = -1;
     for (let i = n - 1; i >= 0; i--) if (dates[i].dateObj.getFullYear() === yearFilter) { dec = i; break; }
     if (jan < 0) return [0, n - 1];
+    if (currentTab === "presenze") return [jan, dec];
     let lo = null, hi = null;
     state.sites.forEach(site => {
       if (!siteVisible(site)) return;
@@ -719,11 +782,23 @@
     return groups;
   }
 
+  // Riga dei mesi: un'unica cella che copre tutte le colonne, con i mesi posizionati in modo
+  // assoluto. Con una cella per mese (colspan) il browser allargava di una frazione di pixel
+  // l'ultima colonna di ogni mese e le colonne dei giorni si sfasavano rispetto alle ombreggiature.
+  function monthRowCellsHtml(groups, nCols) {
+    return `<th class="month-row" colspan="${nCols}"><div class="month-track">` + groups.map(g =>
+      `<div class="month-tick" style="left:${g.startIndex * dayWidth}px;width:${g.count * dayWidth}px;" data-left="${g.startIndex * dayWidth}" data-width="${g.count * dayWidth}"><span class="month-tick-label">${g.label}</span></div>`
+    ).join("") + `</div></th>`;
+  }
+
   // ---------- VISTA MENSILE (overview con barre trascinabili, zoom, navigazione) ----------
   function renderMonthly() {
     const table = document.getElementById("ganttTable");
     const dates = state.dates;
     if (!dates.length) { table.innerHTML = ""; return; }
+    if (currentTab === "presenze") { renderWorkers(); return; }
+    autoFitStickyWidth();
+    ensureAvail();
 
     if (focusedSite && (!state.sites.includes(focusedSite) || !siteVisible(focusedSite))) { focusedSite = null; focusRestore = null; }
     updateYearFilterOptions();
@@ -738,11 +813,7 @@
     table.style.width = `calc(var(--sticky-width) + ${nCols * dayWidth}px)`;
     let html = `<colgroup><col style="width:var(--sticky-width)">${`<col style="width:${dayWidth}px">`.repeat(nCols)}</colgroup>`;
     html += `<thead><tr><th class="sticky-col">CANTIERE${colResizerHtml()}</th>`;
-    monthGroups.forEach(g => {
-      const leftPx = g.startIndex * dayWidth;
-      const widthPx = g.count * dayWidth;
-      html += `<th class="month-tick" colspan="${g.count}" data-left="${leftPx}" data-width="${widthPx}"><span class="month-tick-label">${g.label}</span></th>`;
-    });
+    html += monthRowCellsHtml(monthGroups, nCols);
     html += "</tr>";
     // Questa riga va sempre disegnata, anche quando i numeri non si vedono: è l'unica cella
     // NON in colspan della tabella, quindi è quella che obbliga il browser a rispettare la
@@ -755,6 +826,7 @@
       const d = dates[i];
       let cls = "day-tick";
       if (d.dateObj.getDay() === 0) cls += " day-tick-weekend";
+      else if (nwArr[i] && nwArr[i].kind !== "sat") cls += " day-tick-nw";
       if (i === tIdx) cls += " day-tick-today";
       if (!showDayNumbers) cls += " day-tick-collapsed";
       const li = dayLoadInfo(i);
@@ -999,24 +1071,121 @@
     setTimeout(updateMonthlyLabel, 350);
   }
 
-  function weekendStripesHtml(dates) {
+  function weekendStripesHtml(dates, withOver = true) {
     let html = "";
+    let run = null; // tratto continuo di giorni festivi/chiusura (tratteggio)
+    const flush = () => {
+      if (run) html += `<div class="hatch-stripe" style="left:${run.a * dayWidth}px;width:${(run.b - run.a + 1) * dayWidth}px;"></div>`;
+      run = null;
+    };
     dates.forEach((d, i) => {
-      // Solo la domenica resta grigia; i giorni in cui si supera la disponibilità di operai
-      // si colorano di rosso tenue su tutta la colonna.
-      if (d.dateObj.getDay() === 0) {
+      // Domenica: grigia. Sabato: bianco. Festivi e chiusure (feriali): leggero tratteggio.
+      // I giorni in cui si supera la disponibilità si colorano di rosso tenue sull'intera colonna.
+      const isSun = d.dateObj.getDay() === 0;
+      const nw = nwArr[i];
+      if (nw && !isSun && nw.kind !== "sat") { if (run && run.b === i - 1) run.b = i; else { flush(); run = { a: i, b: i }; } }
+      else flush();
+      if (isSun) {
         html += `<div class="weekend-stripe" style="left:${i * dayWidth}px;width:${dayWidth}px;"></div>`;
       }
-      if (dayLoadInfo(i).over) {
+      if (withOver && dayLoadInfo(i).over) {
         html += `<div class="over-stripe" style="left:${i * dayWidth}px;width:${dayWidth}px;" title="${dayLoadInfo(i).title}"></div>`;
       }
     });
+    flush();
     return html;
+  }
+
+  // ---------- PRESENZE / DISPONIBILITÀ ----------
+  const HOLIDAYS_FIXED = {
+    "01-01": "Capodanno", "01-06": "Epifania", "04-25": "Festa della Liberazione", "05-01": "Festa del lavoro",
+    "06-02": "Festa della Repubblica", "08-15": "Ferragosto", "11-01": "Ognissanti", "12-08": "Immacolata",
+    "12-25": "Natale", "12-26": "Santo Stefano"
+  };
+  const easterCache = {};
+  function easterMondayIso(y) {
+    if (easterCache[y]) return easterCache[y];
+    const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4;
+    const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+    return (easterCache[y] = isoAdd(`${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`, 1));
+  }
+  function isoAdd(iso, n) {
+    const p = iso.split("-").map(Number);
+    return new Date(Date.UTC(p[0], p[1] - 1, p[2] + n)).toISOString().slice(0, 10);
+  }
+  function isoDiff(a, b) { // giorni da a a b
+    const pa = a.split("-").map(Number), pb = b.split("-").map(Number);
+    return Math.round((Date.UTC(pb[0], pb[1] - 1, pb[2]) - Date.UTC(pa[0], pa[1] - 1, pa[2])) / 864e5);
+  }
+  function isoToIdx(iso) { return isoDiff(isoDateOnly(state.dates[0].dateObj), iso); }
+  function idxToIso(i) { return isoDateOnly(state.dates[i].dateObj); }
+  function isIso(v) { return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v); }
+  function closureMatches(c, iso) {
+    if (c.yearly) {
+      const md = iso.slice(5);
+      return c.from <= c.to ? (md >= c.from && md <= c.to) : (md >= c.from || md <= c.to);
+    }
+    return iso >= c.from && iso <= c.to;
+  }
+  // Giorno non lavorativo? {kind, label} oppure null. Festività e chiusure hanno la precedenza
+  // sull'etichetta di sabato/domenica (più informativa).
+  function nonWorkInfo(dateObj) {
+    const iso = isoDateOnly(dateObj), md = iso.slice(5), dow = dateObj.getDay();
+    if (HOLIDAYS_FIXED[md]) return { kind: "hol", label: HOLIDAYS_FIXED[md] };
+    if (iso === easterMondayIso(dateObj.getFullYear())) return { kind: "hol", label: "Lunedì dell'Angelo" };
+    if (dow === 0) return { kind: "sun", label: "Domenica" };
+    const c = closures.find(cl => closureMatches(cl, iso));
+    if (c) return { kind: "closure", label: c.label || "Chiusura aziendale" };
+    return null;
+  }
+  // Unisce periodi di presenza sovrapposti o adiacenti
+  function normBars(w) {
+    w.bars.sort((a, b) => a.s < b.s ? -1 : a.s > b.s ? 1 : 0);
+    const out = [];
+    w.bars.forEach(b => {
+      const last = out[out.length - 1];
+      if (last && b.s <= isoAdd(last.e, 1)) { if (b.e > last.e) last.e = b.e; }
+      else out.push({ s: b.s, e: b.e });
+    });
+    w.bars = out;
+  }
+  // Barra di default (1 marzo - 31 dicembre) per ogni anno di calendario a partire dal primo
+  // tracciato, una sola volta per anno (se poi la si modifica, non viene ricreata).
+  function ensureSeeding() {
+    if (!state.dates.length) return;
+    const nowY = new Date().getFullYear();
+    if (presenceFrom === null) presenceFrom = nowY;
+    const lastY = Math.max(state.dates[state.dates.length - 1].dateObj.getFullYear(), nowY);
+    for (let y = presenceFrom; y <= lastY; y++) {
+      if (seededYears.includes(y)) continue;
+      seededYears.push(y);
+      workers.forEach(w => { w.bars.push({ s: `${y}-03-01`, e: `${y}-12-31` }); normBars(w); });
+    }
+  }
+  let availArr = [], nwArr = [], trackedFromIdx = 0;
+  // Ricalcola, per ogni giorno del calendario, se è lavorativo e quanti operai sono disponibili
+  function ensureAvail() {
+    ensureSeeding();
+    const dates = state.dates, n = dates.length;
+    nwArr = dates.map(d => nonWorkInfo(d.dateObj));
+    const diff = new Array(n + 1).fill(0);
+    workers.forEach(w => w.bars.forEach(b => {
+      const a = Math.max(0, isoToIdx(b.s)), e = Math.min(n - 1, isoToIdx(b.e));
+      if (a <= e) { diff[a]++; diff[e + 1]--; }
+    }));
+    availArr = new Array(n);
+    let cum = 0;
+    for (let i = 0; i < n; i++) { cum += diff[i]; availArr[i] = nwArr[i] ? 0 : cum; }
+    trackedFromIdx = n ? Math.max(0, isoToIdx(`${presenceFrom}-01-01`)) : 0;
+    if (n && isoToIdx(`${presenceFrom}-01-01`) < 0) trackedFromIdx = 0;
   }
 
   // ---------- FORMATTAZIONE CONDIZIONALE: carico giornaliero di operai ----------
   // Per ogni giorno, somma gli operai assegnati a tutte le fasi attive quel giorno; il
-  // rapporto con gli operai totali disponibili dà l'intensità del rosso della riga dedicata.
+  // rapporto con gli operai realmente disponibili (barre di presenza) dà l'intensità del rosso.
   function dailyAssignedSum(dayIdx) {
     let sum = 0;
     state.sites.forEach(site => {
@@ -1026,26 +1195,29 @@
     });
     return sum;
   }
-  function dailyLoadRatio(dayIdx) {
-    const sum = dailyAssignedSum(dayIdx);
-    if (sum <= 0) return 0;
-    return totalWorkers > 0 ? Math.min(1, sum / totalWorkers) : 1;
-  }
   function loadColorAlpha(ratio) {
     // Anche un carico leggero deve essere percepibile, non solo quello vicino al 100%.
     return (0.15 + ratio * 0.65).toFixed(2);
   }
   // Colore e tooltip del carico previsto di un giorno, applicati alla cella della data
   function dayLoadInfo(i) {
+    if (availArr.length !== state.dates.length) ensureAvail();
     const sum = dailyAssignedSum(i);
-    const over = totalWorkers > 0 ? sum > totalWorkers : sum > 0;
-    const ratio = dailyLoadRatio(i);
-    const title = over
-      ? `${sum} / ${totalWorkers} operai richiesti — supera la disponibilità`
-      : `${sum} / ${totalWorkers} operai impegnati`;
-    if (over) return { over: true, bg: "#991B1B", color: "#fff", title };
-    if (ratio > 0) return { over: false, bg: `rgba(220,38,38,${loadColorAlpha(ratio)})`, color: ratio > 0.55 ? "#fff" : "#64748B", title };
-    return { over: false, bg: null, color: null, title };
+    const nw = nwArr[i];
+    const avail = availArr[i];
+    if (nw) return { over: false, bg: null, color: null, nonWork: nw, sum, avail: 0, title: `${nw.label} — giorno non lavorativo` };
+    if (i < trackedFromIdx) {
+      // anni precedenti all'avvio delle presenze: disponibilità non nota, niente confronto
+      const t = `Impiegati ${sum}`;
+      if (sum > 0) return { over: false, bg: "rgba(220,38,38,0.35)", color: "#64748B", sum, avail: null, title: t };
+      return { over: false, bg: null, color: null, sum, avail: null, title: t };
+    }
+    const over = sum > avail;
+    const ratio = sum <= 0 ? 0 : (avail > 0 ? Math.min(1, sum / avail) : 1);
+    const title = `Impiegati ${sum} / Disponibili ${avail}` + (over ? " — supera la disponibilità" : "");
+    if (over) return { over: true, bg: "#991B1B", color: "#fff", sum, avail, title };
+    if (ratio > 0) return { over: false, bg: `rgba(220,38,38,${loadColorAlpha(ratio)})`, color: ratio > 0.55 ? "#fff" : "#64748B", sum, avail, title };
+    return { over: false, bg: null, color: null, sum, avail, title };
   }
 
   // Somma degli operai effettivamente presenti (a eccezioni: default = previsto) su tutti i
@@ -1083,10 +1255,12 @@
     return html;
   }
 
+  // Giorni lavorativi (sabato incluso): esclusi domeniche, festività nazionali e chiusure aziendali
   function workdaysCount(dates, startIdx, endIdx) {
+    if (nwArr.length !== dates.length) ensureAvail();
     let count = 0;
     for (let i = startIdx; i <= endIdx; i++) {
-      if (!isWeekend(dates[i])) count++;
+      if (!nwArr[i]) count++;
     }
     return count;
   }
@@ -1627,6 +1801,17 @@
 
   function tipHtmlFor(el) {
     const dates = state.dates;
+    if (el.dataset.tipWbar !== undefined) {
+      const [wi, bi] = el.dataset.tipWbar.split(":").map(Number);
+      const w = workers[wi], b = w && w.bars[bi];
+      if (!b) return "";
+      const fmt = iso => { const p = iso.split("-"); return `${p[2]}/${p[1]}/${p[0]}`; };
+      const days = isoDiff(b.s, b.e) + 1;
+      return `<div class="tip-head"><span class="tip-dot" style="background:#16A34A;"></span>${escAttr(w.name)}</div>
+        <div class="tip-sub">Disponibile</div>
+        <dl class="tip-grid"><dt>Dal</dt><dd>${fmt(b.s)}</dd><dt>Al</dt><dd>${fmt(b.e)}</dd><dt>Durata</dt><dd>${plural(days, "giorno", "giorni")}</dd></dl>`
+        + (READONLY ? "" : `<div class="tip-foot">Trascina: sposta · bordi: ridimensiona · tasto destro: assenza</div>`);
+    }
     const siteIdx = el.dataset.tipSite;
     if (siteIdx !== undefined) {
       const site = state.sites[Number(siteIdx)];
@@ -1652,7 +1837,7 @@
               <dt>N° operai</dt><dd>${seg.workers || 0}</dd>
               <dt>Inizio</dt><dd>${dates[seg.start].label}</dd>
               <dt>Fine</dt><dd>${dates[seg.end].label}</dd>
-              <dt>Durata</dt><dd>${plural(wd, "giorno feriale", "giorni feriali")}</dd>
+              <dt>Durata</dt><dd>${plural(wd, "giorno lavorativo", "giorni lavorativi")}</dd>
             </dl>`;
       }
       if (!segs.length) return head + `<div class="tip-sub">Nessuna fase pianificata</div><div class="tip-foot">Clicca sul calendario per aggiungerne una</div>`;
@@ -1670,7 +1855,7 @@
           <dt>N° operai</dt><dd>${wMin === wMax ? wMax : `${wMin}–${wMax}`}</dd>
           <dt>Inizio</dt><dd>${dates[first].label}</dd>
           <dt>Fine</dt><dd>${dates[last].label}</dd>
-          <dt>Durata</dt><dd>${plural(wd, "giorno feriale", "giorni feriali")}</dd>
+          <dt>Durata</dt><dd>${plural(wd, "giorno lavorativo", "giorni lavorativi")}</dd>
           <dt>Fasi</dt><dd>${segs.length}</dd>
         </dl>` + phases
         + `<div class="tip-foot">Clic: tutta la durata · doppio clic: rinomina · trascina: riordina</div>`;
@@ -1681,9 +1866,13 @@
       const d = dates[i];
       if (!d) return "";
       const li = dayLoadInfo(i);
-      const sum = dailyAssignedSum(i);
+      if (li.nonWork) {
+        return `<div class="tip-head">${d.label}</div><div class="tip-sub">${escAttr(li.nonWork.label)} · giorno non lavorativo</div>`
+          + (li.sum > 0 ? `<dl class="tip-grid"><dt>Impiegati</dt><dd>${li.sum}</dd></dl>` : "");
+      }
+      if (li.avail === null) return `<div class="tip-head">${d.label}</div><dl class="tip-grid"><dt>Impiegati</dt><dd>${li.sum}</dd></dl><div class="tip-foot">Disponibilità non registrata per questo anno</div>`;
       return `<div class="tip-head">${d.label}</div>
-        <dl class="tip-grid"><dt>Operai impiegati</dt><dd class="${li.over ? "tip-over" : ""}">${sum} / ${totalWorkers}</dd></dl>`
+        <dl class="tip-grid"><dt>Impiegati</dt><dd class="${li.over ? "tip-over" : ""}">${li.sum}</dd><dt>Disponibili</dt><dd>${li.avail}</dd></dl>`
         + (li.over ? `<div class="tip-foot tip-over">Supera la disponibilità</div>` : "");
     }
     return "";
@@ -1705,7 +1894,7 @@
     wrap.addEventListener("mouseover", (e) => {
       if (e.buttons) return; // durante un trascinamento niente tooltip
       if (e.target.closest("button, [data-no-tip], input")) { hideTip(); return; }
-      const el = e.target.closest("[data-tip-seg], [data-tip-site], [data-tip-day]");
+      const el = e.target.closest("[data-tip-seg], [data-tip-site], [data-tip-day], [data-tip-wbar]");
       if (!el) { hideTip(); return; }
       if (el === tipTarget) return;
       const html = tipHtmlFor(el);
@@ -1909,51 +2098,385 @@
     return indexOfDate(state.dates, target.getFullYear(), target.getMonth(), target.getDate());
   }
 
-  // ---------- SCHEDA: operai totali disponibili ----------
-  function onWorkforceMenuOutsideClick(e) {
-    const menu = document.getElementById("workforceMenu");
-    if (menu && !menu.contains(e.target)) closeWorkforceMenu();
+  // ---------- SCHEDA PRESENZE ----------
+  function setTab(t) {
+    if (READONLY || t === currentTab) return; // la scheda Presenze esiste solo nella versione modificabile
+    currentTab = t;
+    document.body.classList.toggle("tab-presenze", t === "presenze");
+    document.getElementById("tabCantieri").classList.toggle("active", t === "cantieri");
+    document.getElementById("tabPresenze").classList.toggle("active", t === "presenze");
+    closeDateMenu(); closeClosuresMenu();
+    if (t === "presenze" && focusedSite) { focusedSite = null; focusRestore = null; }
+    if (state.dates.length) {
+      if (t === "presenze") {
+        // Il calendario dei cantieri copre solo i lavori (+1 mese): per le presenze serve l'anno intero
+        const first = state.dates[0].dateObj.getFullYear();
+        const last = Math.max(state.dates[state.dates.length - 1].dateObj.getFullYear(), new Date().getFullYear());
+        dateToIndexExtending(new Date(first, 0, 1));
+        dateToIndexExtending(new Date(last, 11, 31));
+      } else {
+        fitCalendarToSites(false); // torna alla durata dei cantieri
+      }
+    }
+    renderApp();
+    const c = document.getElementById("ganttScrollWrap");
+    if (c) c.scrollLeft = 0;
+    updateMonthlyLabel();
+    setTimeout(scrollToToday, 30);
   }
 
-  function closeWorkforceMenu() {
-    const menu = document.getElementById("workforceMenu");
-    if (menu) menu.remove();
-    document.removeEventListener("mousedown", onWorkforceMenuOutsideClick);
+  function renderWorkers() {
+    const table = document.getElementById("ganttTable");
+    const dates = state.dates;
+    updateYearFilterOptions();
+    autoFitStickyWidth();
+    [viewA, viewB] = computeViewWindow();
+    ensureAvail();
+    const nCols = viewB - viewA + 1;
+    const windowed = viewA > 0 || viewB < dates.length - 1;
+    const monthGroups = getMonthGroups();
+    const tIdx = todayIndex(dates);
+    const org = Math.max(1, workers.length);
+    table.style.width = `calc(var(--sticky-width) + ${nCols * dayWidth}px)`;
+    let html = `<colgroup><col style="width:var(--sticky-width)">${`<col style="width:${dayWidth}px">`.repeat(nCols)}</colgroup>`;
+    html += `<thead><tr><th class="sticky-col">OPERAIO${colResizerHtml()}</th>`;
+    html += monthRowCellsHtml(monthGroups, nCols);
+    html += "</tr>";
+    const showNumbers = dayWidth >= DAY_ROW_MIN_WIDTH;
+    html += "<tr><th class='sticky-col'></th>";
+    for (let i = viewA; i <= viewB; i++) {
+      const d = dates[i];
+      let cls = "day-tick";
+      if (d.dateObj.getDay() === 0) cls += " day-tick-weekend";
+      else if (nwArr[i] && nwArr[i].kind !== "sat") cls += " day-tick-nw";
+      if (i === tIdx) cls += " day-tick-today";
+      if (!showNumbers) cls += " day-tick-collapsed";
+      const inner = showNumbers ? `<span class="day-initial">${GIORNI[d.dateObj.getDay()].charAt(0)}</span><span class="day-num">${d.dayNum}</span>` : "";
+      html += `<th class="${cls}" style="min-width:${dayWidth}px;width:${dayWidth}px;" data-tip-day="${i}">${inner}</th>`;
+    }
+    html += "</tr>";
+    // riga "Disponibili": quanti operai sono realmente disponibili ogni giorno
+    html += `<tr class="load-row"><th class="sticky-col load-row-label">Disponibili (organico: ${workers.length})</th>`;
+    for (let i = viewA; i <= viewB; i++) {
+      const a = availArr[i];
+      let bg, col;
+      if (nwArr[i]) { bg = "#F1F5F9"; col = "#94A3B8"; }
+      else if (a <= 0) { bg = "#FEE2E2"; col = "#991B1B"; }
+      else { bg = `rgba(22,163,74,${(0.15 + 0.6 * Math.min(1, a / org)).toFixed(2)})`; col = a / org > 0.6 ? "#fff" : "#166534"; }
+      html += `<th class="load-cell" style="min-width:${dayWidth}px;width:${dayWidth}px;background-color:${bg};color:${col};" data-tip-day="${i}">${showNumbers ? a : ""}</th>`;
+    }
+    html += "</tr></thead><tbody>";
+
+    const totalWidth = dates.length * dayWidth;
+    const stripes = weekendStripesHtml(dates, false);
+    const todayStripe = tIdx === -1 ? "" : `<div class="today-stripe" style="left:${tIdx * dayWidth + dayWidth / 2 - 1}px;" title="Oggi"></div>`;
+    const TRACK_H = 34;
+    if (!workers.length) html += `<tr><td colspan="${nCols + 1}" style="padding:24px;text-align:center;color:#64748B;">Nessun operaio in organico. Usa “+ Nuovo operaio”.</td></tr>`;
+    workers.forEach((w, wi) => {
+      html += `<tr data-worker-idx="${wi}"><td class="sticky-col"><div class="site-label-row">
+          <span class="site-name worker-name" title="Clicca per rinominare" onclick="editWorkerName(this, ${wi})">${escAttr(w.name)}</span>
+          <button class="site-del worker-del" onclick="removeWorker(${wi}, this)" title="Rimuovi operaio">&times;</button></div></td>`;
+      html += `<td class="gantt-track-cell" colspan="${nCols}"${windowed ? ' style="overflow-x:clip;"' : ""}><div class="gantt-track" style="width:${totalWidth}px;height:${TRACK_H}px;${windowed ? `margin-left:${-viewA * dayWidth}px;` : ""}">`;
+      html += stripes + todayStripe;
+      html += `<div class="gantt-empty" onclick="addWorkerBar(event, ${wi})" title="Clicca per aggiungere un periodo di presenza"></div>`;
+      w.bars.forEach((b, bi) => {
+        const a = isoToIdx(b.s), e = isoToIdx(b.e);
+        if (e < 0 || a > dates.length - 1) return;
+        const ca = Math.max(a, 0), ce = Math.min(e, dates.length - 1);
+        html += `<div class="presence-bar" style="left:${ca * dayWidth}px;width:${(ce - ca + 1) * dayWidth}px;top:6px;height:${TRACK_H - 12}px;"
+            data-tip-wbar="${wi}:${bi}"
+            onmousedown="startWorkerBarDrag(event, ${wi}, ${bi}, 'move')" ontouchstart="startWorkerBarDrag(event, ${wi}, ${bi}, 'move')"
+            oncontextmenu="openWorkerBarMenu(event, ${wi}, ${bi})">
+            <span class="handle handle-left" onmousedown="startWorkerBarDrag(event, ${wi}, ${bi}, 'left')" ontouchstart="startWorkerBarDrag(event, ${wi}, ${bi}, 'left')"></span>
+            <button class="bar-del" onmousedown="event.stopPropagation()" onclick="removeWorkerBar(event, ${wi}, ${bi})" title="Rimuovi questo periodo">&times;</button>
+            <span class="handle handle-right" onmousedown="startWorkerBarDrag(event, ${wi}, ${bi}, 'right')" ontouchstart="startWorkerBarDrag(event, ${wi}, ${bi}, 'right')"></span>
+          </div>`;
+      });
+      html += `</div></td></tr>`;
+    });
+    html += "</tbody>";
+    const wrap = document.getElementById("ganttScrollWrap");
+    const pl = wrap ? wrap.scrollLeft : 0, pt = wrap ? wrap.scrollTop : 0;
+    table.innerHTML = html;
+    if (wrap) { wrap.scrollLeft = pl; wrap.scrollTop = pt; }
+    positionStickyHeaders();
+    alignTodayStripe();
   }
 
-  function openWorkforceMenu(evt) {
+  function addWorker() {
+    if (READONLY) return;
+    pushUndo();
+    ensureSeeding();
+    let n = workers.length + 1;
+    const names = new Set(workers.map(w => w.name));
+    while (names.has("Op. " + n)) n++;
+    const w = { name: "Op. " + n, bars: seededYears.slice().sort().map(y => ({ s: `${y}-03-01`, e: `${y}-12-31` })) };
+    normBars(w);
+    workers.push(w);
+    renderApp();
+    persistState();
+    const c = document.getElementById("ganttScrollWrap");
+    if (c) c.scrollTop = c.scrollHeight;
+  }
+
+  function removeWorker(wi, btn) {
+    if (READONLY) return;
+    if (btn.dataset.confirm !== "1") {
+      btn.dataset.confirm = "1";
+      btn.textContent = "OK?";
+      btn.classList.add("confirm-pending");
+      clearTimeout(btn._confirmTimeout);
+      btn._confirmTimeout = setTimeout(() => {
+        btn.dataset.confirm = "0"; btn.textContent = "×"; btn.classList.remove("confirm-pending");
+      }, 2500);
+      return;
+    }
+    pushUndo();
+    workers.splice(wi, 1);
+    renderApp();
+    persistState();
+  }
+
+  function editWorkerName(el, wi) {
+    if (READONLY) return;
+    const current = workers[wi].name;
+    const input = document.createElement("input");
+    input.type = "text"; input.value = current; input.maxLength = 24;
+    input.className = "op-input"; input.style.width = "100%";
+    el.replaceWith(input);
+    input.focus(); input.select();
+    let done = false;
+    const finish = save => {
+      if (done) return;
+      done = true;
+      const v = input.value.trim();
+      if (save && v && v !== current) { pushUndo(); workers[wi].name = v; persistState(); }
+      renderApp();
+    };
+    input.addEventListener("blur", () => finish(true));
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") finish(true);
+      else if (e.key === "Escape") { e.stopPropagation(); finish(false); }
+    });
+  }
+
+  function addWorkerBar(evt, wi) {
+    if (READONLY) return;
+    const track = evt.currentTarget.closest(".gantt-track");
+    const rect = track.getBoundingClientRect();
+    const dayIdx = clamp(Math.floor((evt.clientX - rect.left) / dayWidth), 0, state.dates.length - 1);
+    const w = workers[wi];
+    const s = idxToIso(dayIdx);
+    if (w.bars.some(b => s >= b.s && s <= b.e)) return;
+    let e = isoAdd(s, 6);
+    const nxt = w.bars.filter(b => b.s > s).sort((a, b) => a.s < b.s ? -1 : 1)[0];
+    if (nxt && e >= nxt.s) e = isoAdd(nxt.s, -1);
+    pushUndo();
+    w.bars.push({ s, e });
+    normBars(w);
+    renderApp();
+    persistState();
+  }
+
+  function removeWorkerBar(evt, wi, bi) {
     evt.stopPropagation();
-    closeWorkforceMenu();
-    closeDateMenu();
+    if (READONLY) return;
+    pushUndo();
+    workers[wi].bars.splice(bi, 1);
+    renderApp();
+    persistState();
+  }
+
+  function startWorkerBarDrag(evt, wi, bi, edge) {
+    if (READONLY) return;
+    evt.preventDefault();
+    evt.stopPropagation();
+    const w = workers[wi], bar = w.bars[bi];
+    if (!bar) return;
+    pushUndo();
+    const container = document.getElementById("ganttScrollWrap");
+    const getX = e => (e.touches ? e.touches[0].clientX : e.clientX);
+    const startX = getX(evt), startScroll = container ? container.scrollLeft : 0;
+    const o = { s: bar.s, e: bar.e };
+    const prev = w.bars[bi - 1], next = w.bars[bi + 1];
+    const lo = prev ? isoAdd(prev.e, 1) : "0000-01-01";
+    const hi = next ? isoAdd(next.s, -1) : "9999-12-31";
+    let lastX = startX;
+    function apply() {
+      const dd = Math.round(((lastX - startX) + ((container ? container.scrollLeft : 0) - startScroll)) / dayWidth);
+      if (edge === "left") { let s = isoAdd(o.s, dd); if (s < lo) s = lo; if (s > o.e) s = o.e; bar.s = s; }
+      else if (edge === "right") { let e = isoAdd(o.e, dd); if (e > hi) e = hi; if (e < o.s) e = o.s; bar.e = e; }
+      else {
+        const span = isoDiff(o.s, o.e);
+        let s = isoAdd(o.s, dd); if (s < lo) s = lo;
+        let e = isoAdd(s, span); if (e > hi) { e = hi; s = isoAdd(e, -span); }
+        bar.s = s; bar.e = e;
+      }
+      renderWorkers();
+    }
+    function onMove(e) { e.preventDefault(); lastX = getX(e); apply(); }
+    function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onUp);
+      if (bar.s === o.s && bar.e === o.e) { undoStack.pop(); updateUndoButton(); return; } // solo un clic
+      normBars(w);
+      renderApp();
+      persistState();
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onUp);
+  }
+
+  function openWorkerBarMenu(evt, wi, bi) {
+    evt.preventDefault();
+    evt.stopPropagation();
+    if (READONLY) return;
+    closeDateMenu(); closeClosuresMenu();
+    const w = workers[wi], bar = w.bars[bi];
+    if (!bar) return;
+    const track = evt.currentTarget.closest(".gantt-track");
+    const rect = track.getBoundingClientRect();
+    const clicked = idxToIso(clamp(Math.floor((evt.clientX - rect.left) / dayWidth), 0, state.dates.length - 1));
     const menu = document.createElement("div");
-    menu.id = "workforceMenu";
+    menu.id = "dateMenu";
     menu.className = "date-menu";
     menu.innerHTML = `
-      <div class="date-menu-title">Operai disponibili</div>
-      <label class="date-menu-field">Totale operai<input type="number" id="workforceInput" min="0" value="${totalWorkers}"></label>
+      <div class="date-menu-title">${escAttr(w.name)} · periodo di presenza</div>
+      <label class="date-menu-field">Dal<input type="date" id="wbStart" value="${bar.s}"></label>
+      <label class="date-menu-field">Al<input type="date" id="wbEnd" value="${bar.e}"></label>
       <div class="date-menu-actions">
-        <button type="button" class="date-menu-cancel" onclick="closeWorkforceMenu()">Annulla</button>
-        <button type="button" class="date-menu-apply" onclick="applyWorkforceMenu()">Applica</button>
+        <button type="button" class="date-menu-delete" onclick="removeWorkerBar(event, ${wi}, ${bi}); closeDateMenu();">Elimina periodo</button>
+        <button type="button" class="date-menu-apply" onclick="applyWorkerBarMenu(${wi}, ${bi})">Applica</button>
+      </div>
+      <div class="date-menu-sep">Assenza (taglia la presenza)</div>
+      <label class="date-menu-field">Dal<input type="date" id="wbAbsFrom" value="${clicked}"></label>
+      <label class="date-menu-field">Al<input type="date" id="wbAbsTo" value="${clicked}"></label>
+      <div class="date-menu-actions">
+        <button type="button" class="date-menu-cancel" onclick="closeDateMenu()">Chiudi</button>
+        <button type="button" class="date-menu-apply" onclick="applyWorkerAbsence(${wi})">Registra assenza</button>
       </div>`;
     document.body.appendChild(menu);
-    const rect = evt.currentTarget.getBoundingClientRect();
-    const x = Math.min(rect.left, window.innerWidth - menu.offsetWidth - 12);
-    const y = Math.min(rect.bottom + 6, window.innerHeight - menu.offsetHeight - 12);
+    const x = Math.min(evt.clientX, window.innerWidth - menu.offsetWidth - 12);
+    const y = Math.min(evt.clientY, window.innerHeight - menu.offsetHeight - 12);
     menu.style.left = Math.max(8, x) + "px";
     menu.style.top = Math.max(8, y) + "px";
-    document.getElementById("workforceInput").focus();
-    setTimeout(() => document.addEventListener("mousedown", onWorkforceMenuOutsideClick), 0);
+    setTimeout(() => document.addEventListener("mousedown", onDateMenuOutsideClick), 0);
   }
 
-  function applyWorkforceMenu() {
-    const input = document.getElementById("workforceInput");
-    let val = parseInt(input.value, 10);
-    if (isNaN(val) || val < 0) val = 0;
-    if (val !== totalWorkers) {
-      pushUndo();
-      totalWorkers = val;
-    }
-    closeWorkforceMenu();
+  function applyWorkerBarMenu(wi, bi) {
+    const s = document.getElementById("wbStart").value, e = document.getElementById("wbEnd").value;
+    if (!isIso(s) || !isIso(e) || s > e) { flashSaveStatus(false, "Date non valide"); return; }
+    pushUndo();
+    const bar = workers[wi].bars[bi];
+    bar.s = s; bar.e = e;
+    normBars(workers[wi]);
+    closeDateMenu();
+    renderApp();
+    persistState();
+  }
+
+  function applyWorkerAbsence(wi) {
+    let a = document.getElementById("wbAbsFrom").value, b = document.getElementById("wbAbsTo").value;
+    if (!isIso(a) || !isIso(b)) { flashSaveStatus(false, "Date non valide"); return; }
+    if (a > b) [a, b] = [b, a];
+    pushUndo();
+    const out = [];
+    workers[wi].bars.forEach(bar => {
+      if (bar.e < a || bar.s > b) { out.push(bar); return; }
+      if (bar.s < a) out.push({ s: bar.s, e: isoAdd(a, -1) });
+      if (bar.e > b) out.push({ s: isoAdd(b, 1), e: bar.e });
+    });
+    workers[wi].bars = out;
+    closeDateMenu();
+    renderApp();
+    persistState();
+  }
+
+  // ---------- CHIUSURE AZIENDALI ----------
+  function onClosuresMenuOutsideClick(e) {
+    const menu = document.getElementById("closuresMenu");
+    if (menu && !menu.contains(e.target) && !e.target.closest("#closuresBtn")) closeClosuresMenu();
+  }
+  function closeClosuresMenu() {
+    editingClosure = null;
+    const menu = document.getElementById("closuresMenu");
+    if (menu) menu.remove();
+    document.removeEventListener("mousedown", onClosuresMenuOutsideClick);
+  }
+  function closureText(c) {
+    const f = v => { const p = v.split("-"); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : `${p[1]}/${p[0]}`; };
+    return `${f(c.from)} → ${f(c.to)}${c.yearly ? " · ogni anno" : ""}`;
+  }
+  let editingClosure = null;
+  function editClosure(i) { editingClosure = i; fillClosuresMenu(); }
+  function cancelClosureEdit() { editingClosure = null; fillClosuresMenu(); }
+  function fillClosuresMenu() {
+    const menu = document.getElementById("closuresMenu");
+    if (!menu) return;
+    if (editingClosure !== null && !closures[editingClosure]) editingClosure = null;
+    const ec = editingClosure !== null ? closures[editingClosure] : null;
+    const full = (v, y) => v.length === 5 ? `${v === "02-29" ? 2024 : y}-${v}` : v;
+    const y0 = new Date().getFullYear();
+    const today = isoDateOnly(new Date());
+    const vFrom = ec ? full(ec.from, y0) : today, vTo = ec ? full(ec.to, ec.from > ec.to ? y0 + 1 : y0) : today;
+    menu.innerHTML = `
+      <div class="date-menu-title">Chiusure aziendali</div>
+      ${closures.length ? closures.map((c, i) => `<div class="closure-row"><div><b>${escAttr(c.label)}</b><br><span>${closureText(c)}</span></div>
+          <span style="display:flex;gap:4px;"><button type="button" class="site-del" onclick="editClosure(${i})" title="Modifica">&#9998;</button>
+          <button type="button" class="site-del" onclick="removeClosure(${i})" title="Rimuovi">&times;</button></span></div>`).join("")
+        : `<div class="closure-note">Nessuna chiusura impostata.</div>`}
+      <div class="date-menu-sep">${ec ? "Modifica chiusura" : "Aggiungi chiusura"}</div>
+      <label class="date-menu-field">Nome<input type="text" id="clLabel" maxlength="40" placeholder="es. Ferie estive" value="${ec ? escAttr(ec.label) : ""}"></label>
+      <label class="date-menu-field">Dal<input type="date" id="clFrom" value="${vFrom}"></label>
+      <label class="date-menu-field">Al<input type="date" id="clTo" value="${vTo}"></label>
+      <label class="date-menu-field date-menu-check"><input type="checkbox" id="clYearly"${ec ? (ec.yearly ? " checked" : "") : ""}> Ripeti ogni anno</label>
+      <div class="date-menu-actions">
+        <button type="button" class="date-menu-cancel" onclick="${ec ? "cancelClosureEdit()" : "closeClosuresMenu()"}">${ec ? "Annulla" : "Chiudi"}</button>
+        <button type="button" class="date-menu-apply" onclick="addClosure()">${ec ? "Salva" : "Aggiungi"}</button>
+      </div>
+      <p class="closure-note">Le domeniche e le festività nazionali sono già escluse. Nei giorni di chiusura la disponibilità è 0.</p>`;
+  }
+  function openClosuresMenu(evt) {
+    evt.stopPropagation();
+    if (document.getElementById("closuresMenu")) { closeClosuresMenu(); return; }
+    closeDateMenu();
+    const menu = document.createElement("div");
+    menu.id = "closuresMenu";
+    menu.className = "date-menu";
+    menu.style.width = "290px";
+    menu.style.maxHeight = "80vh";
+    menu.style.overflowY = "auto";
+    document.body.appendChild(menu);
+    if (READONLY) {
+      menu.innerHTML = `<div class="date-menu-title">Chiusure aziendali</div>` + closures.map(c => `<div class="closure-row"><div><b>${escAttr(c.label)}</b><br><span>${closureText(c)}</span></div></div>`).join("");
+    } else fillClosuresMenu();
+    const rect = evt.currentTarget.getBoundingClientRect();
+    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 12)) + "px";
+    menu.style.top = Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - menu.offsetHeight - 12)) + "px";
+    setTimeout(() => document.addEventListener("mousedown", onClosuresMenuOutsideClick), 0);
+  }
+  function addClosure() {
+    const from = document.getElementById("clFrom").value, to = document.getElementById("clTo").value;
+    const yearly = document.getElementById("clYearly").checked;
+    const label = document.getElementById("clLabel").value.trim() || "Chiusura";
+    if (!isIso(from) || !isIso(to) || (!yearly && from > to)) { flashSaveStatus(false, "Date non valide"); return; }
+    pushUndo();
+    const c = { label, from: yearly ? from.slice(5) : from, to: yearly ? to.slice(5) : to, yearly };
+    if (editingClosure !== null && closures[editingClosure]) closures[editingClosure] = c; else closures.push(c);
+    editingClosure = null;
+    fillClosuresMenu();
+    renderApp();
+    persistState();
+  }
+  function removeClosure(i) {
+    pushUndo();
+    closures.splice(i, 1);
+    editingClosure = null;
+    fillClosuresMenu();
     renderApp();
     persistState();
   }
@@ -2474,8 +2997,37 @@
 
   // ---------- RIDIMENSIONAMENTO COLONNA CANTIERE ----------
   let stickyWidth = 180;
+  let stickyAutoDone = false; // l'adattamento automatico avviene una sola volta, all'apertura
   function applyStickyWidth() {
     document.documentElement.style.setProperty("--sticky-width", stickyWidth + "px");
+  }
+  // All'apertura la colonna dei nomi si adatta al nome più lungo; poi resta com'è (anche se la si
+  // restringe a mano, e in quel caso i nomi vanno a capo).
+  let measureCtx = null;
+  function textWidth(txt, font) {
+    if (!measureCtx) measureCtx = document.createElement("canvas").getContext("2d");
+    measureCtx.font = font;
+    return measureCtx.measureText(txt).width;
+  }
+  function autoFitStickyWidth() {
+    if (stickyAutoDone || !state.sites.length) return;
+    stickyAutoDone = true;
+    const fam = getComputedStyle(document.body).fontFamily;
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    let w = 0;
+    if (currentTab === "presenze") {
+      workers.forEach(x => { w = Math.max(w, textWidth(x.name, `600 ${0.8 * rem}px ${fam}`) + 70); });
+      w = Math.max(w, textWidth("Disponibili (organico: 99)", `italic 600 ${0.66 * rem}px ${fam}`) + 30, 150);
+    } else {
+      state.sites.forEach(site => {
+        if (!siteVisible(site)) return;
+        // pallino colore + spazi + pulsante elimina + margini della cella
+        w = Math.max(w, textWidth(site.name, `600 ${0.8 * rem}px ${fam}`) + 15 + 8 + 22 + 20 + 8);
+      });
+      w = Math.max(w, textWidth("00/00 (Lun) \u2192 00/00 (Lun)", `400 ${0.68 * rem}px ${fam}`) + 30, 150);
+    }
+    w = Math.round(clamp(w, 150, 480));
+    if (w !== stickyWidth) { stickyWidth = w; applyStickyWidth(); }
   }
   function startColResize(evt) {
     evt.preventDefault();
@@ -2565,7 +3117,11 @@
           actual: seg.actual || undefined
         }))
       })),
-      totalWorkers,
+      totalWorkers: workers.length,
+      workers: workers.map(w => ({ name: w.name, bars: w.bars.map(b => ({ s: b.s, e: b.e })) })),
+      closures: closures.map(c => ({ label: c.label, from: c.from, to: c.to, yearly: !!c.yearly })),
+      seededYears: seededYears.slice(),
+      presenceFrom,
       dayWidth, stickyWidth, currentMonthKey
     };
   }
@@ -2620,7 +3176,23 @@
     });
     state = { dates, sites };
     applyRelevanceOrder();
-    if (typeof payload.totalWorkers === "number") totalWorkers = payload.totalWorkers;
+    if (Array.isArray(payload.workers)) {
+      workers = payload.workers.filter(w => w && typeof w.name === "string").map(w => ({
+        name: w.name.slice(0, 24),
+        bars: (Array.isArray(w.bars) ? w.bars : []).filter(b => b && isIso(b.s) && isIso(b.e) && b.s <= b.e).map(b => ({ s: b.s, e: b.e }))
+      }));
+      workers.forEach(normBars);
+      closures = Array.isArray(payload.closures)
+        ? payload.closures.filter(c => c && typeof c.from === "string" && typeof c.to === "string").map(c => ({
+            label: String(c.label || "Chiusura").slice(0, 40), from: c.from, to: c.to, yearly: !!c.yearly }))
+        : defaultClosures();
+      seededYears = Array.isArray(payload.seededYears) ? payload.seededYears.filter(Number.isInteger) : [];
+      presenceFrom = Number.isInteger(payload.presenceFrom) ? payload.presenceFrom : null;
+    } else {
+      // File precedente alle presenze: il vecchio "numero di operai" diventa altrettante righe
+      const n = typeof payload.totalWorkers === "number" ? clamp(Math.round(payload.totalWorkers), 0, 200) : 15;
+      workers = makeWorkers(n); closures = defaultClosures(); seededYears = []; presenceFrom = null;
+    }
     if (payload.dayWidth) dayWidth = payload.dayWidth;
     if (payload.stickyWidth) { stickyWidth = payload.stickyWidth; applyStickyWidth(); }
     currentMonthKey = payload.currentMonthKey || (dates.length ? dates[0].monthKey : null);
@@ -2788,8 +3360,7 @@
     const demoSites = [
       { name: "Cantiere A (Edilizia)", colorClass: "bg-a", ops: place([2, 2, 4, 4, 8, 8, 4]), assignedWorkers: 6 },
       { name: "Cantiere B (Infrastrutture)", colorClass: "bg-b", ops: place([5, 5, 6, 6, 2, 2, 4]), assignedWorkers: 5 },
-      { name: "Cantiere C (Restauro)", colorClass: "bg-c", ops: place([5, 5, 2, 2, 2, 2, 4]), assignedWorkers: 4 },
-      { name: "Ferie / Assenze", colorClass: "bg-off", ops: new Array(demoDates.length).fill(0), assignedWorkers: 0 }
+      { name: "Cantiere C (Restauro)", colorClass: "bg-c", ops: place([5, 5, 2, 2, 2, 2, 4]), assignedWorkers: 4 }
     ];
     return { demoDates, demoSites };
   }
