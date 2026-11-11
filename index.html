@@ -325,7 +325,7 @@
   body:not(.tab-presenze) .only-presenze { display: none !important; }
   .presence-bar {
     position: absolute; border-radius: 5px; z-index: 2; cursor: grab; user-select: none;
-    background: #DCFCE7; border: 1.5px solid #16A34A; box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+    background: #D6E4F0; border: 1.5px solid #1F4E78; box-shadow: 0 1px 2px rgba(0,0,0,0.12);
   }
   .presence-bar:active { cursor: grabbing; }
   .presence-bar:hover .bar-del { opacity: 1; }
@@ -334,6 +334,9 @@
   body.readonly .worker-del { display: none; }
   body.readonly .worker-name { pointer-events: none; }
   .worker-name { cursor: text; }
+  .worker-grip { cursor: grab; color: #94A3B8; letter-spacing: -3px; padding: 0 6px 0 0; user-select: none; touch-action: none; }
+  .worker-grip:hover { color: var(--primary); }
+  body.readonly .worker-grip { display: none; }
   .date-menu-sep { margin: 10px 0 6px; padding-top: 8px; border-top: 1px solid var(--border); font-weight: 700; color: #475569; font-size: 0.74rem; }
   .closure-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid #F1F5F9; }
   .closure-row span { color: #64748B; font-size: 0.72rem; }
@@ -432,6 +435,7 @@
       <span class="controls-sep"></span>
       <button class="btn-add only-cantieri" onclick="addSite()">+ Nuovo cantiere</button>
       <button class="btn-add only-presenze" onclick="addWorker()">+ Nuovo operaio</button>
+      <button class="btn-add only-presenze" onclick="sortWorkersAz()" title="Rimette gli operai in ordine alfabetico">A&#8211;Z Ordina</button>
       <span class="controls-sep"></span>
       <button id="closuresBtn" class="btn-add" onclick="openClosuresMenu(event)" title="Chiusure aziendali (ferie collettive, ponti...). Le domeniche e le festività nazionali sono già escluse.">&#128197; Chiusure</button>
       <button class="btn-add only-cantieri" onclick="sortSitesByRelevance()" title="Attivi (per operai oggi), poi futuri (per data di inizio), poi terminati">&#8597; Ordina per rilevanza</button>
@@ -501,6 +505,7 @@
   let currentTab = "cantieri";
   let workers = [];           // [{name, bars:[{s:"AAAA-MM-GG", e:"AAAA-MM-GG"}]}]
   let closures = [];          // [{label, from, to, yearly}] yearly: "MM-GG"; altrimenti "AAAA-MM-GG"
+  let workersManual = false;  // true se l'ordine degli operai è stato scelto trascinando (altrimenti alfabetico)
   let seededYears = [];       // anni per cui è già stata creata la barra di default (1 mar - 31 dic)
   let presenceFrom = null;    // primo anno di cui si tengono le presenze (prima: disponibilità non nota)
   function makeWorkers(n) { return Array.from({ length: n }, (_, i) => ({ name: "Op. " + (i + 1), bars: [] })); }
@@ -600,7 +605,8 @@
       workers: JSON.parse(JSON.stringify(workers)),
       closures: JSON.parse(JSON.stringify(closures)),
       seededYears: seededYears.slice(),
-      presenceFrom
+      presenceFrom,
+      workersManual
     };
   }
 
@@ -625,6 +631,7 @@
     currentMonthKey = snap.currentMonthKey;
     if (snap.workers) {
       workers = snap.workers; closures = snap.closures; seededYears = snap.seededYears; presenceFrom = snap.presenceFrom;
+      workersManual = !!snap.workersManual;
     }
     renderApp();
     updateMonthlyLabel();
@@ -1141,6 +1148,19 @@
     if (c) return { kind: "closure", label: c.label || "Chiusura aziendale" };
     return null;
   }
+  // Ordine alfabetico (numeri in ordine naturale: Op. 2 prima di Op. 10), salvo ordine manuale
+  function sortWorkers() {
+    if (workersManual) return;
+    workers.sort((a, b) => a.name.localeCompare(b.name, "it", { numeric: true, sensitivity: "base" }));
+  }
+  function sortWorkersAz() {
+    if (READONLY) return;
+    pushUndo();
+    workersManual = false;
+    sortWorkers();
+    renderApp();
+    persistState();
+  }
   // Unisce periodi di presenza sovrapposti o adiacenti
   function normBars(w) {
     w.bars.sort((a, b) => a.s < b.s ? -1 : a.s > b.s ? 1 : 0);
@@ -1165,7 +1185,7 @@
       workers.forEach(w => { w.bars.push({ s: `${y}-03-01`, e: `${y}-12-31` }); normBars(w); });
     }
   }
-  let availArr = [], nwArr = [], trackedFromIdx = 0;
+  let availArr = [], nwArr = [], trackedFromIdx = 0, availMin = 0, availMax = 0, ratioMin = 0, ratioMax = 1;
   // Ricalcola, per ogni giorno del calendario, se è lavorativo e quanti operai sono disponibili
   function ensureAvail() {
     ensureSeeding();
@@ -1180,7 +1200,23 @@
     let cum = 0;
     for (let i = 0; i < n; i++) { cum += diff[i]; availArr[i] = nwArr[i] ? 0 : cum; }
     trackedFromIdx = n ? Math.max(0, isoToIdx(`${presenceFrom}-01-01`)) : 0;
-    if (n && isoToIdx(`${presenceFrom}-01-01`) < 0) trackedFromIdx = 0;
+    // estremi della disponibilità nei giorni lavorativi con operai: servono a scalare i colori
+    availMin = Infinity; availMax = 0;
+    for (let i = trackedFromIdx; i < n; i++) {
+      if (nwArr[i] || availArr[i] <= 0) continue;
+      availMin = Math.min(availMin, availArr[i]); availMax = Math.max(availMax, availArr[i]);
+    }
+    if (!isFinite(availMin)) availMin = 0;
+    // estremi del rapporto impiegati/disponibili (giorni non in superamento): scala del rosso
+    ratioMin = Infinity; ratioMax = 0;
+    for (let i = trackedFromIdx; i < n; i++) {
+      if (nwArr[i] || availArr[i] <= 0) continue;
+      const sm = dailyAssignedSum(i);
+      if (sm <= 0 || sm > availArr[i]) continue;
+      const r = sm / availArr[i];
+      ratioMin = Math.min(ratioMin, r); ratioMax = Math.max(ratioMax, r);
+    }
+    if (!isFinite(ratioMin)) ratioMin = 0;
   }
 
   // ---------- FORMATTAZIONE CONDIZIONALE: carico giornaliero di operai ----------
@@ -1195,10 +1231,11 @@
     });
     return sum;
   }
-  function loadColorAlpha(ratio) {
-    // Anche un carico leggero deve essere percepibile, non solo quello vicino al 100%.
-    return (0.15 + ratio * 0.65).toFixed(2);
+  // Intensità (0..1) del rosso: scalata tra il carico minimo e massimo presenti nel calendario
+  function loadScale(ratio) {
+    return ratioMax > ratioMin ? clamp((ratio - ratioMin) / (ratioMax - ratioMin), 0, 1) : 1;
   }
+  function loadColorAlpha(t) { return (0.08 + t * 0.92).toFixed(2); }
   // Colore e tooltip del carico previsto di un giorno, applicati alla cella della data
   function dayLoadInfo(i) {
     if (availArr.length !== state.dates.length) ensureAvail();
@@ -1214,9 +1251,10 @@
     }
     const over = sum > avail;
     const ratio = sum <= 0 ? 0 : (avail > 0 ? Math.min(1, sum / avail) : 1);
+    const tScale = ratio > 0 ? loadScale(ratio) : 0;
     const title = `Impiegati ${sum} / Disponibili ${avail}` + (over ? " — supera la disponibilità" : "");
     if (over) return { over: true, bg: "#991B1B", color: "#fff", sum, avail, title };
-    if (ratio > 0) return { over: false, bg: `rgba(220,38,38,${loadColorAlpha(ratio)})`, color: ratio > 0.55 ? "#fff" : "#64748B", sum, avail, title };
+    if (ratio > 0) return { over: false, bg: `rgba(220,38,38,${loadColorAlpha(tScale)})`, color: tScale > 0.4 ? "#fff" : "#64748B", sum, avail, title };
     return { over: false, bg: null, color: null, sum, avail, title };
   }
 
@@ -1807,7 +1845,7 @@
       if (!b) return "";
       const fmt = iso => { const p = iso.split("-"); return `${p[2]}/${p[1]}/${p[0]}`; };
       const days = isoDiff(b.s, b.e) + 1;
-      return `<div class="tip-head"><span class="tip-dot" style="background:#16A34A;"></span>${escAttr(w.name)}</div>
+      return `<div class="tip-head"><span class="tip-dot" style="background:#1F4E78;"></span>${escAttr(w.name)}</div>
         <div class="tip-sub">Disponibile</div>
         <dl class="tip-grid"><dt>Dal</dt><dd>${fmt(b.s)}</dd><dt>Al</dt><dd>${fmt(b.e)}</dd><dt>Durata</dt><dd>${plural(days, "giorno", "giorni")}</dd></dl>`
         + (READONLY ? "" : `<div class="tip-foot">Trascina: sposta · bordi: ridimensiona · tasto destro: assenza</div>`);
@@ -2162,7 +2200,11 @@
       let bg, col;
       if (nwArr[i]) { bg = "#F1F5F9"; col = "#94A3B8"; }
       else if (a <= 0) { bg = "#FEE2E2"; col = "#991B1B"; }
-      else { bg = `rgba(22,163,74,${(0.15 + 0.6 * Math.min(1, a / org)).toFixed(2)})`; col = a / org > 0.6 ? "#fff" : "#166534"; }
+      else {
+        // scala tra il minimo e il massimo realmente presenti, così anche piccole differenze si vedono
+        const t = availMax > availMin ? (a - availMin) / (availMax - availMin) : 1;
+        bg = `rgba(31,78,120,${(0.05 + 0.95 * t).toFixed(2)})`; col = t > 0.4 ? "#fff" : "#1F4E78";
+      }
       html += `<th class="load-cell" style="min-width:${dayWidth}px;width:${dayWidth}px;background-color:${bg};color:${col};" data-tip-day="${i}">${showNumbers ? a : ""}</th>`;
     }
     html += "</tr></thead><tbody>";
@@ -2174,6 +2216,7 @@
     if (!workers.length) html += `<tr><td colspan="${nCols + 1}" style="padding:24px;text-align:center;color:#64748B;">Nessun operaio in organico. Usa “+ Nuovo operaio”.</td></tr>`;
     workers.forEach((w, wi) => {
       html += `<tr data-worker-idx="${wi}"><td class="sticky-col"><div class="site-label-row">
+          <span class="worker-grip" title="Trascina per spostare" onmousedown="startWorkerRowDrag(event, ${wi})" ontouchstart="startWorkerRowDrag(event, ${wi})">&#8942;&#8942;</span>
           <span class="site-name worker-name" title="Clicca per rinominare" onclick="editWorkerName(this, ${wi})">${escAttr(w.name)}</span>
           <button class="site-del worker-del" onclick="removeWorker(${wi}, this)" title="Rimuovi operaio">&times;</button></div></td>`;
       html += `<td class="gantt-track-cell" colspan="${nCols}"${windowed ? ' style="overflow-x:clip;"' : ""}><div class="gantt-track" style="width:${totalWidth}px;height:${TRACK_H}px;${windowed ? `margin-left:${-viewA * dayWidth}px;` : ""}">`;
@@ -2213,6 +2256,7 @@
     const w = { name: "Op. " + n, bars: seededYears.slice().sort().map(y => ({ s: `${y}-03-01`, e: `${y}-12-31` })) };
     normBars(w);
     workers.push(w);
+    sortWorkers();
     renderApp();
     persistState();
     const c = document.getElementById("ganttScrollWrap");
@@ -2250,7 +2294,7 @@
       if (done) return;
       done = true;
       const v = input.value.trim();
-      if (save && v && v !== current) { pushUndo(); workers[wi].name = v; persistState(); }
+      if (save && v && v !== current) { pushUndo(); workers[wi].name = v; sortWorkers(); persistState(); }
       renderApp();
     };
     input.addEventListener("blur", () => finish(true));
@@ -2258,6 +2302,46 @@
       if (e.key === "Enter") finish(true);
       else if (e.key === "Escape") { e.stopPropagation(); finish(false); }
     });
+  }
+
+  function startWorkerRowDrag(evt, wi) {
+    if (READONLY) return;
+    evt.preventDefault();
+    evt.stopPropagation();
+    const getY = e => (e.touches ? e.touches[0].clientY : e.clientY);
+    const rows = Array.from(document.querySelectorAll("#ganttTable tbody tr[data-worker-idx]"));
+    const rects = rows.map(r => r.getBoundingClientRect());
+    const dragged = rows[wi];
+    if (dragged) dragged.classList.add("site-row-dragging");
+    let pos = wi;
+    function mark(y) {
+      pos = rows.length;
+      for (let i = 0; i < rects.length; i++) { if (y < rects[i].top + rects[i].height / 2) { pos = i; break; } }
+      rows.forEach(r => r.classList.remove("drop-target-top", "drop-target-bottom"));
+      if (pos < rows.length) rows[pos].classList.add("drop-target-top"); else rows[rows.length - 1].classList.add("drop-target-bottom");
+    }
+    mark(getY(evt));
+    function onMove(e) { e.preventDefault(); mark(getY(e)); }
+    function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onUp);
+      rows.forEach(r => r.classList.remove("drop-target-top", "drop-target-bottom", "site-row-dragging"));
+      let to = pos; if (wi < pos) to -= 1;
+      to = clamp(to, 0, workers.length - 1);
+      if (to === wi) return;
+      pushUndo();
+      const [m] = workers.splice(wi, 1);
+      workers.splice(to, 0, m);
+      workersManual = true;
+      renderApp();
+      persistState();
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onUp);
   }
 
   function addWorkerBar(evt, wi) {
@@ -3122,6 +3206,7 @@
       closures: closures.map(c => ({ label: c.label, from: c.from, to: c.to, yearly: !!c.yearly })),
       seededYears: seededYears.slice(),
       presenceFrom,
+      workersManual,
       dayWidth, stickyWidth, currentMonthKey
     };
   }
@@ -3188,6 +3273,8 @@
         : defaultClosures();
       seededYears = Array.isArray(payload.seededYears) ? payload.seededYears.filter(Number.isInteger) : [];
       presenceFrom = Number.isInteger(payload.presenceFrom) ? payload.presenceFrom : null;
+      workersManual = !!payload.workersManual;
+      sortWorkers();
     } else {
       // File precedente alle presenze: il vecchio "numero di operai" diventa altrettante righe
       const n = typeof payload.totalWorkers === "number" ? clamp(Math.round(payload.totalWorkers), 0, 200) : 15;
